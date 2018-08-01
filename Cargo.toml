@@ -1,0 +1,15 @@
+cargo-features = ["edition"]
+
+[package]
+name = "lang"
+version = "0.1.0"
+authors = ["Michael Hewson <michael@michaelhewson.ca>"]
+edition = "2018"
+
+[dependencies]
+lalrpop-util = "*"
+regex = "*"
+rustyline = "*"
+
+[build-dependencies]
+lalrpop = "*"

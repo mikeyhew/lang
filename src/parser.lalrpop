@@ -1,0 +1,74 @@
+
+use crate::{
+    Expr::{self, *},
+};
+
+grammar;
+
+pub Expr: Expr = {
+    EmptyRecord,
+    Record,
+    RecordType,
+    Tuple,
+    Number,
+    Var,
+    "(" <Expr> ")"
+}
+
+EmptyRecord: Expr = {
+    "{" "}" => EmptyRecord
+}
+
+Record: Expr = {
+    "{" <CommaAtLeast1<RecordFieldValue>> "}" => Record(<>)
+}
+
+RecordFieldValue: (String, Expr) = {
+    <name:Ident> "=" <value:Expr> => (name.into(), value)
+}
+
+RecordType: Expr = {
+    "{" <CommaAtLeast1<RecordFieldType>> "}" => RecordType(<>)
+}
+
+RecordFieldType: (String, Expr) = {
+    <name:Ident> ":" <typ:Expr> => (name.into(), typ)
+}
+
+Tuple: Expr = {
+    "(" ")" => Tuple(Vec::new()),
+    "(" <Expr> "," ")" => Tuple(vec![<>]),
+    "(" <first:Expr> "," <rest:CommaAtLeast1<Expr>> ")" => {
+        let mut all = vec![first];
+        all.extend(rest);
+        Tuple(all)
+    }
+}
+
+Var: Expr = {
+    Ident => Var(<>.into())
+}
+
+Number: Expr = {
+    r"-?[0-9]+" => Number(<>.parse().unwrap()),
+}
+
+Ident: &'input str = {
+    r"[\pL_][\pL\pN_]*"
+}
+
+CommaAtLeast1<Rule>: Vec<Rule> = {
+    <first:Rule> <rest:("," <Rule>)*> ","? => {
+        let mut rules = vec![first];
+        rules.extend(rest);
+        rules
+    }
+}
+
+Comma<Rule>: Vec<Rule> = {
+    <rules:(<Rule> ",")*> <last:Rule?> => {
+        let mut rules = rules;
+        rules.extend(last);
+        rules
+    }
+}
