@@ -10,6 +10,3 @@ edition = "2018"
 lalrpop-util = "*"
 regex = "*"
 rustyline = "*"
-
-[build-dependencies]
-lalrpop = "*"
