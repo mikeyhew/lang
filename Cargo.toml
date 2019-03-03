@@ -6,6 +6,7 @@ authors = ["Michael Hewson <michael@michaelhewson.ca>"]
 edition = "2018"
 
 [dependencies]
-lalrpop-util = "*"
-regex = "*"
-rustyline = "*"
+lalrpop-util = "0.16.3"
+regex = "1.1.2"
+rustyline = "3.0.0"
+codespan = "0.2.1"
