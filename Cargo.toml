@@ -2,6 +2,7 @@ cargo-features = ["edition"]
 
 [package]
 name = "lang"
+description = "a programming language"
 version = "0.1.0"
 authors = ["Michael Hewson <michael@michaelhewson.ca>"]
 edition = "2018"
