@@ -1,31 +1,14 @@
 #![warn(rust_2018_idioms)]
-#![allow(unused_extern_crates)]
 #![allow(unreachable_pub)]
 
-
-// lalrpop-generated code is not written for Rust 2018
+mod ast;
 #[allow(rust_2018_idioms)]
 mod parser;
-// mod lexer;
 
 use rustyline::{
     error::ReadlineError::{Interrupted, Eof},
 };
-
-use crate::{
-    parser::ExprParser,
-};
-
-#[derive(Debug, Clone)]
-pub enum Expr {
-    Type,
-    RecordType(Vec<(String, Expr)>),
-    Record(Vec<(String, Expr)>),
-    EmptyRecord,
-    Tuple(Vec<Expr>),
-    Var(String),
-    Number(isize),
-}
+use parser::SpannedExprParser;
 
 fn main() {
     let mut line_reader = rustyline::Editor::<()>::new();
@@ -37,7 +20,7 @@ fn main() {
     loop {
         let line = match line_reader.readline("> ") {
             Ok(line) => {
-                line_reader.add_history_entry(&line);
+                line_reader.add_history_entry(line.as_str());
                 line
             },
             Err(Interrupted) => {
@@ -53,14 +36,14 @@ fn main() {
             }
         };
 
-        let expr = match ExprParser::new().parse(&line) {
+        let expr = match SpannedExprParser::new().parse(&line) {
             Ok(term) => term,
             Err(err) => {
                 println!("{}", err);
                 continue
             }
         };
-        println!("{:?}", expr);
+        println!("{:#?}", expr);
     }
 
     line_reader.save_history("history.txt").unwrap();

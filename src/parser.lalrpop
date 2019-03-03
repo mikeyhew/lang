@@ -1,67 +1,84 @@
-
 use crate::{
-    Expr::{self, *},
+    ast::{Expr, Ident, Spanned},
 };
 
 grammar;
 
-pub Expr: Expr = {
+pub SpannedExpr: Spanned<Expr> = Spanned<Expr>;
+
+Expr: Expr = {
     EmptyRecord,
-    Record,
+    RecordValue,
     RecordType,
     Tuple,
+    Block,
     Number,
     Var,
-    "(" <Expr> ")"
+    "(" <Expr> ")",
 }
 
 EmptyRecord: Expr = {
-    "{" "}" => EmptyRecord
+    "{" "}" => Expr::EmptyRecord
 }
 
-Record: Expr = {
-    "{" <CommaAtLeast1<RecordFieldValue>> "}" => Record(<>)
+RecordValue: Expr = {
+    "{" <CommaAtLeast1<RecordFieldValue>> "}" => Expr::RecordValue(<>)
 }
 
-RecordFieldValue: (String, Expr) = {
-    <name:Ident> "=" <value:Expr> => (name.into(), value)
+RecordFieldValue: (Spanned<Ident>, Spanned<Expr>) = {
+    <name:Spanned<Ident>> "=" <value:Spanned<Expr>> => (name, value)
 }
 
 RecordType: Expr = {
-    "{" <CommaAtLeast1<RecordFieldType>> "}" => RecordType(<>)
+    "{" <CommaAtLeast1<RecordFieldType>> "}" => Expr::RecordType(<>)
 }
 
-RecordFieldType: (String, Expr) = {
-    <name:Ident> ":" <typ:Expr> => (name.into(), typ)
+RecordFieldType: (Spanned<Ident>, Spanned<Expr>) = {
+    <name:Spanned<Ident>> ":" <typ:Spanned<Expr>> => (name, typ)
 }
 
 Tuple: Expr = {
-    "(" ")" => Tuple(Vec::new()),
-    "(" <Expr> "," ")" => Tuple(vec![<>]),
-    "(" <first:Expr> "," <rest:CommaAtLeast1<Expr>> ")" => {
+    "(" ")" => Expr::Tuple(Vec::new()),
+    "(" <Spanned<Expr>> "," ")" => Expr::Tuple(vec![<>]),
+    "(" <first:Spanned<Expr>> "," <rest:CommaAtLeast1<Spanned<Expr>>> ")" => {
         let mut all = vec![first];
         all.extend(rest);
-        Tuple(all)
+        Expr::Tuple(all)
+    }
+}
+
+Block: Expr = {
+    "{" <first:Spanned<Expr>> <rest:( ";" <Spanned<Expr>> )*> <ending_semi:";"?> "}" => {
+        let mut statement_exprs = vec![first];
+        statement_exprs.extend(rest);
+
+        let last = if ending_semi.is_none() {
+            Some(Box::new(statement_exprs.pop().unwrap()))
+        } else {
+            None
+        };
+
+        Expr::Block(statement_exprs, last)
     }
 }
 
 Var: Expr = {
-    Ident => Var(<>.into())
+    Ident => Expr::Var(<>)
 }
 
 Number: Expr = {
-    r"-?[0-9]+" => Number(<>.parse().unwrap()),
+    r"-?[0-9]+" => Expr::Number(<>.parse().unwrap()),
 }
 
-Ident: &'input str = {
-    r"[\pL_][\pL\pN_]*"
+Ident: Ident = {
+    r"[\pL_][\pL\pN_]*" => <>.into()
 }
 
-CommaAtLeast1<Rule>: Vec<Rule> = {
-    <first:Rule> <rest:("," <Rule>)*> ","? => {
-        let mut rules = vec![first];
-        rules.extend(rest);
-        rules
+// Macros
+
+Spanned<T>: Spanned<T> = {
+    <start:@L> <value: T> <end:@R> => {
+        Spanned::from_value_and_byte_offsets(value, start, end)
     }
 }
 
@@ -69,6 +86,14 @@ Comma<Rule>: Vec<Rule> = {
     <rules:(<Rule> ",")*> <last:Rule?> => {
         let mut rules = rules;
         rules.extend(last);
+        rules
+    }
+}
+
+CommaAtLeast1<Rule>: Vec<Rule> = {
+    <first:Rule> <rest:("," <Rule>)*> ","? => {
+        let mut rules = vec![first];
+        rules.extend(rest);
         rules
     }
 }
