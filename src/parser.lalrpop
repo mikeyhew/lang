@@ -1,5 +1,6 @@
 use crate::{
     ast::{Expr, Ident, Spanned},
+    util::unescape,
 };
 
 grammar;
@@ -12,8 +13,11 @@ Expr: Expr = {
     RecordType,
     Tuple,
     Block,
-    Number,
+    NumberLiteral,
+    StringLiteral,
     Var,
+    RecordFieldAccess,
+    TupleFieldAccess,
     "(" <Expr> ")",
 }
 
@@ -66,8 +70,38 @@ Var: Expr = {
     Ident => Expr::Var(<>)
 }
 
-Number: Expr = {
-    r"-?[0-9]+" => Expr::Number(<>.parse().unwrap()),
+RecordFieldAccess: Expr = {
+    <expr:Expr> "." <field_name:Ident> => Expr::RecordFieldAccess(Box::new(expr), field_name),
+}
+
+TupleFieldAccess: Expr = {
+    <expr:Expr> "." <field_number:Digits> => Expr::TupleFieldAccess(Box::new(expr), field_number),
+}
+
+Digits: usize = {
+    r"[0-9]+" => <>.parse().expect("number too big"),
+}
+
+NumberLiteral: Expr = {
+    <sign:"-"?> <digits:Digits> => {
+        let digits = digits as isize;
+
+        let number = if sign.is_some() {
+            -digits
+        } else {
+            digits
+        };
+
+        Expr::NumberLiteral(number)
+    }
+}
+
+StringLiteral: Expr = {
+    r#""(\\.|[^\\"])*""# => {
+        let s = <>[1..(<>.len() - 1)].into();
+
+        Expr::StringLiteral(unescape(s))
+    }
 }
 
 Ident: Ident = {

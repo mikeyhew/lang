@@ -4,6 +4,7 @@
 mod ast;
 #[allow(rust_2018_idioms)]
 mod parser;
+mod util;
 
 use rustyline::{
     error::ReadlineError::{Interrupted, Eof},

@@ -41,7 +41,10 @@ pub enum Expr {
 	Tuple(Vec<Spanned<Expr>>),
 	Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 	Var(Ident),
-	Number(isize),
+	RecordFieldAccess(Box<Expr>, Ident),
+	TupleFieldAccess(Box<Expr>, usize),
+	NumberLiteral(isize),
+	StringLiteral(String),
 }
 
 #[derive(Debug, Clone)]
