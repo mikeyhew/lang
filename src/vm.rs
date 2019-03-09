@@ -1,10 +1,16 @@
 pub use crate::ast::{
     Expr,
+    ExprKind,
     Ident,
-    Spanned,
+    Name,
+    Number,
+    Span,
 };
 use derive_more::{
     Display,
+};
+use std::{
+    fmt,
 };
 
 pub type Map<K, V> = fnv::FnvHashMap<K, V>;
@@ -22,23 +28,67 @@ macro_rules! type_error {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
     Nil,
-    Record(Map<Ident, Value>),
+    Record(Map<Name, Value>),
     Tuple(Vec<Value>),
-    Number(isize),
+    Number(Number),
     String_(String),
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Nil => write!(f, "nil"),
+            Value::Record(map) => {
+                write!(f, "{{")?;
+
+                let mut first = true;
+
+                for (name, value) in map.iter() {
+                    if !first {
+                        write!(f, ", ")?;
+                    } else {
+                        first = false;
+                    }
+
+                    write!(f, "{}={}", name, value)?;
+                }
+
+                write!(f, "}}")
+            }
+            Value::Tuple(vec) => {
+                write!(f, "(")?;
+
+                let mut first = true;
+
+                for value in vec.iter() {
+                    if !first {
+                        write!(f, ", ")?;
+                    } else {
+                        first = false;
+                    }
+
+                    write!(f, "{}", value)?;
+                }
+
+                write!(f, ")")
+            }
+            Value::Number(n) => write!(f, "{}", n),
+            Value::String_(s) => write!(f, "{:?}", s),
+        }
+    }
+}
+
 impl Value {
-    fn access_record_field(&self, name: &Ident) -> Result<Value, TypeError> {
+    fn access_record_field(&self, name: &Name) -> Result<Value, TypeError> {
         match self {
             Value::Record(map) => {
                 if let Some(value) = map.get(name) {
                     Ok(value.clone())
                 } else {
-                    type_error!("Record {:?} doesn't have a field named {}", self, name.as_ref())
+                    type_error!("record {} doesn't have a field named {}", self, name)
                 }
             }
-            _ => type_error!("expected Record, found {:?}", self)
+            _ => type_error!("expected record with field `{}`, found {}", name, self)
         }
     }
 
@@ -50,16 +100,22 @@ impl Value {
                 if let Some(value) = values.get(number) {
                     Ok(value.clone())
                 } else {
-                    type_error!("Tuple {:?} doesn't have a field at {}", self, number)
+                    type_error!(
+                        "expected tuple with at least {} elements, found one with only {}: {}",
+                        number + 1, values.len(), self
+                    )
                 }
             }
-            _ => type_error!("expected Tuple, found {:?}", self)
+            _ => type_error!(
+                "expected tuple with at least {} elements, found {}",
+                number + 1 , self
+            )
         }
     }
 }
 
 pub struct Context {
-    map: Map<Ident, Value>,
+    map: Map<Name, Value>,
 }
 
 impl Context {
@@ -69,31 +125,31 @@ impl Context {
         }
     }
 
-    pub fn extend(&self, name: Ident, value: Value) -> Self {
+    pub fn extend(&self, name: Name, value: Value) -> Self {
         let mut map = self.map.clone();
         map.insert(name, value);
         Self {map}
     }
 
-    pub fn get(&self, name: &Ident) -> Option<&Value> {
+    pub fn get(&self, name: &Name) -> Option<&Value> {
         self.map.get(name)
     }
 }
 
-pub fn evaluate(expr: &Spanned<Expr>, context: &Context) -> Result<Value, TypeError> {
-    Ok(match &expr.value {
-        Expr::EmptyRecord => Value::Nil,
-        Expr::RecordValue(entries) => {
+pub fn evaluate(expr: &Expr, context: &Context) -> Result<Value, TypeError> {
+    Ok(match &expr.kind {
+        ExprKind::EmptyRecord => Value::Nil,
+        ExprKind::RecordValue(entries) => {
             let mut map = Map::default();
 
-            for (name, expr) in entries.iter() {
-                map.insert(name.value.clone(), evaluate(expr, context)?);
+            for (ident, expr) in entries.iter() {
+                map.insert(ident.name.clone(), evaluate(expr, context)?);
             }
 
             Value::Record(map)
         }
-        Expr::RecordType(..) => unimplemented!("RecordType"),
-        Expr::Tuple(exprs) => {
+        ExprKind::RecordType(..) => unimplemented!("RecordType"),
+        ExprKind::Tuple(exprs) => {
             match exprs.len() {
                 0 => Value::Nil,
                 1 => evaluate(&exprs[0], context)?,
@@ -108,25 +164,26 @@ pub fn evaluate(expr: &Spanned<Expr>, context: &Context) -> Result<Value, TypeEr
                 }
             }
         }
-        Expr::Block(..) => unimplemented!("Block"),
-        Expr::Let(name, value, body) => {
+        ExprKind::Block(..) => unimplemented!("Block"),
+        ExprKind::Let(ref ident, ref value, ref body) => {
             let value = evaluate(value, context)?;
-            let context = context.extend(name.value.clone(), value);
+            let context = context.extend(ident.name.clone(), value);
             evaluate(body, &context)?
         }
-        Expr::Var(name) => {
-            match context.get(&name) {
+        ExprKind::Var(ident) => {
+            match context.get(&ident.name) {
                 Some(value) => value.clone(),
-                None => type_error!("Unknown variable {}", name),
+                None => type_error!("Unknown variable {}", ident.name),
             }
         },
-        Expr::RecordFieldAccess(ref expr, ref field_name) => {
-            evaluate(expr, context)?.access_record_field(field_name)?
+        ExprKind::RecordFieldAccess(ref expr, ref field_name) => {
+            evaluate(expr, context)?.access_record_field(&field_name.name)?
         }
-        Expr::TupleFieldAccess(ref expr, field_number) => {
+        ExprKind::TupleFieldAccess(ref expr, ref field_number) => {
             evaluate(expr, context)?.access_tuple_field(*field_number)?
         }
-        Expr::NumberLiteral(number) => Value::Number(*number),
-        Expr::StringLiteral(s) => Value::String_(s.clone()),
+        ExprKind::NumberLiteral(number) => Value::Number(*number),
+        ExprKind::StringLiteral(s) => Value::String_(s.clone()),
+        ExprKind::Parenthesized(ref expr) => evaluate(expr, context)?,
     })
 }

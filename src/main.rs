@@ -2,7 +2,6 @@
 #![allow(unreachable_pub)]
 
 mod ast;
-// mod ir;
 #[allow(rust_2018_idioms)]
 mod parser;
 mod util;
@@ -11,7 +10,7 @@ mod vm;
 use rustyline::{
     error::ReadlineError::{Interrupted, Eof},
 };
-use parser::SpannedExprParser;
+use parser::ExprParser;
 
 fn main() {
     let mut line_reader = rustyline::Editor::<()>::new();
@@ -39,17 +38,16 @@ fn main() {
             }
         };
 
-        let expr = match SpannedExprParser::new().parse(&line) {
+        let expr = match ExprParser::new().parse(&line) {
             Ok(term) => term,
             Err(err) => {
                 println!("{}", err);
                 continue
             }
         };
-        println!("{:#?}", expr);
-
-        // empty line
-        println!();
+        // println!("{:#?}", expr);
+        // // empty line
+        // println!();
 
         let context = vm::Context::new();
 
@@ -60,7 +58,8 @@ fn main() {
                 continue
             }
         };
-        println!("{:#?}", value);
+
+        println!("{}", value);
     }
 
     line_reader.save_history("history.txt").unwrap();

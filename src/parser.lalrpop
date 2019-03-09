@@ -1,18 +1,27 @@
 use crate::{
-    ast::{Expr, Ident, Spanned},
+    ast::{Expr, ExprKind, Ident, Span},
     util::unescape,
+};
+use std::{
+    convert::TryInto,
 };
 
 grammar;
 
-pub SpannedExpr: Spanned<Expr> = Spanned<Expr>;
+pub Expr: Expr = {
+    Spanned<ExprKind> => Expr::new(<>),
+}
 
-Expr: Expr = {
+ExprKind: ExprKind = {
     Let,
-    SmallExpr,
+    SmallExprKind,
 }
 
 SmallExpr: Expr = {
+    Spanned<SmallExprKind> => Expr::new(<>),
+}
+
+SmallExprKind: ExprKind = {
     EmptyRecord,
     RecordValue,
     RecordType,
@@ -23,41 +32,43 @@ SmallExpr: Expr = {
     Var,
     RecordFieldAccess,
     TupleFieldAccess,
-    "(" <Expr> ")",
-}
-
-EmptyRecord: Expr = {
-    "{" "}" => Expr::EmptyRecord
-}
-
-RecordValue: Expr = {
-    "{" <CommaAtLeast1<RecordFieldValue>> "}" => Expr::RecordValue(<>)
-}
-
-RecordFieldValue: (Spanned<Ident>, Spanned<Expr>) = {
-    <name:Spanned<Ident>> "=" <value:Spanned<Expr>> => (name, value)
-}
-
-RecordType: Expr = {
-    "{" <CommaAtLeast1<RecordFieldType>> "}" => Expr::RecordType(<>)
-}
-
-RecordFieldType: (Spanned<Ident>, Spanned<Expr>) = {
-    <name:Spanned<Ident>> ":" <typ:Spanned<Expr>> => (name, typ)
-}
-
-Tuple: Expr = {
-    "(" ")" => Expr::Tuple(Vec::new()),
-    "(" <Spanned<Expr>> "," ")" => Expr::Tuple(vec![<>]),
-    "(" <first:Spanned<Expr>> "," <rest:CommaAtLeast1<Spanned<Expr>>> ")" => {
-        let mut all = vec![first];
-        all.extend(rest);
-        Expr::Tuple(all)
+    "(" <expr:Expr> ")" => {
+        ExprKind::Parenthesized(Box::new(expr))
     }
 }
 
-Block: Expr = {
-    "{" <first:Spanned<Expr>> <rest:( ";" <Spanned<Expr>> )*> <ending_semi:";"?> "}" => {
+EmptyRecord: ExprKind = {
+    "{" "}" => ExprKind::EmptyRecord
+}
+
+RecordValue: ExprKind = {
+    "{" <CommaAtLeast1<RecordFieldValue>> "}" => ExprKind::RecordValue(<>)
+}
+
+RecordFieldValue: (Ident, Expr) = {
+    <name:Ident> "=" <value:Expr> => (name, value)
+}
+
+RecordType: ExprKind = {
+    "{" <CommaAtLeast1<RecordFieldType>> "}" => ExprKind::RecordType(<>)
+}
+
+RecordFieldType: (Ident, Expr) = {
+    <name:Ident> ":" <typ:Expr> => (name, typ)
+}
+
+Tuple: ExprKind = {
+    "(" ")" => ExprKind::Tuple(Vec::new()),
+    "(" <Expr> "," ")" => ExprKind::Tuple(vec![<>]),
+    "(" <first:Expr> "," <rest:CommaAtLeast1<Expr>> ")" => {
+        let mut all = vec![first];
+        all.extend(rest);
+        ExprKind::Tuple(all)
+    }
+}
+
+Block: ExprKind = {
+    "{" <first:Expr> <rest:( ";" <Expr> )*> <ending_semi:";"?> "}" => {
         let mut statement_exprs = vec![first];
         statement_exprs.extend(rest);
 
@@ -67,35 +78,37 @@ Block: Expr = {
             None
         };
 
-        Expr::Block(statement_exprs, last)
+        ExprKind::Block(statement_exprs, last)
     }
 }
 
-Let: Expr = {
-    "let" <name:Spanned<Ident>> "=" <value:Spanned<Expr>> "in" <body:Spanned<Expr>> => {
-        Expr::Let(name, Box::new(value), Box::new(body))
+Let: ExprKind = {
+    "let" <name:Ident> "=" <value:Expr> "in" <body:Expr> => {
+        ExprKind::Let(name, Box::new(value), Box::new(body))
     }
 }
 
-Var: Expr = {
-    Ident => Expr::Var(<>)
+Var: ExprKind = {
+    Ident => ExprKind::Var(<>)
 }
 
-RecordFieldAccess: Expr = {
-    <expr:Spanned<SmallExpr>> "." <field_name:Ident> => Expr::RecordFieldAccess(Box::new(expr), field_name),
+RecordFieldAccess: ExprKind = {
+    <expr:SmallExpr> "." <field_name:Ident> => ExprKind::RecordFieldAccess(Box::new(expr), field_name),
 }
 
-TupleFieldAccess: Expr = {
-    <expr:Spanned<SmallExpr>> "." <field_number:Digits> => Expr::TupleFieldAccess(Box::new(expr), field_number),
+TupleFieldAccess: ExprKind = {
+    <expr:SmallExpr> "." <field_number:Digits> => {
+        ExprKind::TupleFieldAccess(Box::new(expr), field_number.try_into().expect("field number too big"))
+    }
 }
 
-Digits: usize = {
+Digits: u64 = {
     r"[0-9]+" => <>.parse().expect("number too big"),
 }
 
-NumberLiteral: Expr = {
+NumberLiteral: ExprKind = {
     <sign:"-"?> <digits:Digits> => {
-        let digits = digits as isize;
+        let digits = digits as i64;
 
         let number = if sign.is_some() {
             -digits
@@ -103,27 +116,33 @@ NumberLiteral: Expr = {
             digits
         };
 
-        Expr::NumberLiteral(number)
+        ExprKind::NumberLiteral(number.into())
     }
 }
 
-StringLiteral: Expr = {
+StringLiteral: ExprKind = {
     r#""(\\.|[^\\"])*""# => {
         let s = <>[1..(<>.len() - 1)].into();
 
-        Expr::StringLiteral(unescape(s))
+        ExprKind::StringLiteral(unescape(s))
     }
 }
 
 Ident: Ident = {
-    r"[\pL_][\pL\pN_]*" => <>.into()
+    Spanned<r"[\pL_][\pL\pN_]*"> => {
+        let (name, span) = <>;
+
+        Ident::new(name, span)
+    }
 }
 
 // Macros
 
-Spanned<T>: Spanned<T> = {
+Spanned<T>: (T, Span) = {
     <start:@L> <value: T> <end:@R> => {
-        Spanned::from_value_and_byte_offsets(value, start, end)
+        let span = Span::from_byte_offsets(start, end);
+
+        (value, span)
     }
 }
 
