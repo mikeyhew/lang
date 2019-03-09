@@ -2,9 +2,11 @@
 #![allow(unreachable_pub)]
 
 mod ast;
+// mod ir;
 #[allow(rust_2018_idioms)]
 mod parser;
 mod util;
+mod vm;
 
 use rustyline::{
     error::ReadlineError::{Interrupted, Eof},
@@ -45,6 +47,20 @@ fn main() {
             }
         };
         println!("{:#?}", expr);
+
+        // empty line
+        println!();
+
+        let context = vm::Context::new();
+
+        let value = match vm::evaluate(&expr, &context) {
+            Ok(value) => value,
+            Err(err) => {
+                println!("{}", err);
+                continue
+            }
+        };
+        println!("{:#?}", value);
     }
 
     line_reader.save_history("history.txt").unwrap();

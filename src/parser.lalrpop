@@ -8,6 +8,11 @@ grammar;
 pub SpannedExpr: Spanned<Expr> = Spanned<Expr>;
 
 Expr: Expr = {
+    Let,
+    SmallExpr,
+}
+
+SmallExpr: Expr = {
     EmptyRecord,
     RecordValue,
     RecordType,
@@ -66,16 +71,22 @@ Block: Expr = {
     }
 }
 
+Let: Expr = {
+    "let" <name:Spanned<Ident>> "=" <value:Spanned<Expr>> "in" <body:Spanned<Expr>> => {
+        Expr::Let(name, Box::new(value), Box::new(body))
+    }
+}
+
 Var: Expr = {
     Ident => Expr::Var(<>)
 }
 
 RecordFieldAccess: Expr = {
-    <expr:Expr> "." <field_name:Ident> => Expr::RecordFieldAccess(Box::new(expr), field_name),
+    <expr:Spanned<SmallExpr>> "." <field_name:Ident> => Expr::RecordFieldAccess(Box::new(expr), field_name),
 }
 
 TupleFieldAccess: Expr = {
-    <expr:Expr> "." <field_number:Digits> => Expr::TupleFieldAccess(Box::new(expr), field_number),
+    <expr:Spanned<SmallExpr>> "." <field_number:Digits> => Expr::TupleFieldAccess(Box::new(expr), field_number),
 }
 
 Digits: usize = {

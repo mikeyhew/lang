@@ -3,6 +3,9 @@ use std::{
 	convert::TryInto,
 	fmt,
 };
+use derive_more::{
+	Display,
+};
 
 #[derive(Clone)]
 pub struct Spanned<T> {
@@ -41,13 +44,14 @@ pub enum Expr {
 	Tuple(Vec<Spanned<Expr>>),
 	Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 	Var(Ident),
-	RecordFieldAccess(Box<Expr>, Ident),
-	TupleFieldAccess(Box<Expr>, usize),
+	Let(Spanned<Ident>, Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+	RecordFieldAccess(Box<Spanned<Expr>>, Ident),
+	TupleFieldAccess(Box<Spanned<Expr>>, usize),
 	NumberLiteral(isize),
 	StringLiteral(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Display, Clone, Hash, Eq, PartialEq)]
 pub struct Ident(String);
 
 impl From<String> for Ident {
@@ -59,5 +63,11 @@ impl From<String> for Ident {
 impl<'a> From<&'a str> for Ident {
 	fn from(s: &'a str) -> Self {
 		Ident(s.into())
+	}
+}
+
+impl AsRef<str> for Ident {
+	fn as_ref(&self) -> &str {
+		self.0.as_ref()
 	}
 }
