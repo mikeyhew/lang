@@ -31,25 +31,15 @@ macro_rules! type_error {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
-    // #[display(fmt = "nil")]
     Nil,
-    // #[display(fmt = "Nil")]
     NilType,
-    // #[display(fmt = "{{{}}}", join(", ", _0.iter().map(|(k, v)| mapping("=", k, v))))]
     Record(Map<Name, Value>),
-    // #[display(fmt = "{{{}}}", join(", ", _0.iter().map(|(k, v)| mapping(": ", k, v))))]
     RecordType(Map<Name, Value>),
-    // #[display(fmt = "({})", join(", ", _0.iter()))]
     Tuple(Vec<Value>),
-    // #[display(fmt = "type ({})", join(", ", _0.iter()))]
     TupleType(Vec<Value>),
-    // #[display(fmt = "{}", _0)]
     Number(Number),
-    // #[display(fmt = "Number")]
     NumberType,
-    // #[display(fmt = "{:?}", _0)]
     String_(String),
-    // #[display(fmt = "String")]
     StringType,
 }
 
