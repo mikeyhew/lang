@@ -76,21 +76,17 @@ fn join<I: Iterator<Item=impl Display> + Clone>(
     Join(joiner, it)
 }
 
-struct Mapping<K, V> {
+#[derive(Display)]
+#[display(fmt = "{}{}{}", key, between, value)]
+struct Mapping<K: Display, V: Display> {
     between: &'static str,
     key: K,
     value: V,
 }
 
-impl<K: Display, V: Display> Display for Mapping<K, V> {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}{}{}", self.key, self.between, self.value)
-    }
-}
-
 fn mapping<K: Display, V: Display>(
     between: &'static str,
-) -> impl FnMut((K, V)) -> Mapping<K, V> + Clone {
+) -> impl Fn((K, V)) -> Mapping<K, V> + Copy {
     move |(key, value)| Mapping {between, key, value}
 }
 
