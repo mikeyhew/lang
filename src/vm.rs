@@ -10,7 +10,7 @@ use derive_more::{
     Display,
 };
 use std::{
-    fmt,
+    fmt::{self, Display},
 };
 
 pub type Map<K, V> = fnv::FnvHashMap<K, V>;
@@ -27,53 +27,94 @@ macro_rules! type_error {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Value {
+    // #[display(fmt = "nil")]
     Nil,
+    // #[display(fmt = "Nil")]
+    NilType,
+    // #[display(fmt = "{{{}}}", join(", ", _0.iter().map(|(k, v)| mapping("=", k, v))))]
     Record(Map<Name, Value>),
+    // #[display(fmt = "{{{}}}", join(", ", _0.iter().map(|(k, v)| mapping(": ", k, v))))]
+    RecordType(Map<Name, Value>),
+    // #[display(fmt = "({})", join(", ", _0.iter()))]
     Tuple(Vec<Value>),
+    // #[display(fmt = "type ({})", join(", ", _0.iter()))]
+    TupleType(Vec<Value>),
+    // #[display(fmt = "{}", _0)]
     Number(Number),
+    // #[display(fmt = "Number")]
+    NumberType,
+    // #[display(fmt = "{:?}", _0)]
     String_(String),
+    // #[display(fmt = "String")]
+    StringType,
+}
+
+fn join<I: Iterator<Item=impl Display> + Clone>(
+    joiner: &'static str,
+    it: I,
+) -> impl Display {
+    struct Join<I>(&'static str, I);
+
+    impl<I: Iterator<Item=impl Display> + Clone> Display for Join<I> {
+        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let Join(joiner, it) = self;
+            let mut it: I = it.clone();
+
+            match it.next() {
+                Some(d) => write!(fmt, "{}", d)?,
+                None => return Ok(()),
+            }
+
+            for d in it {
+                write!(fmt, "{}{}", joiner, d)?;
+            }
+
+            Ok(())
+        }
+    }
+
+    Join(joiner, it)
+}
+
+struct Mapping<K, V> {
+    between: &'static str,
+    key: K,
+    value: V,
+}
+
+impl<K: Display, V: Display> Display for Mapping<K, V> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{}{}{}", self.key, self.between, self.value)
+    }
+}
+
+fn mapping<K: Display, V: Display>(
+    between: &'static str,
+) -> impl FnMut((K, V)) -> Mapping<K, V> + Clone {
+    move |(key, value)| Mapping {between, key, value}
 }
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Nil => write!(f, "nil"),
+            Value::NilType => write!(f, "Nil"),
             Value::Record(map) => {
-                write!(f, "{{")?;
-
-                let mut first = true;
-
-                for (name, value) in map.iter() {
-                    if !first {
-                        write!(f, ", ")?;
-                    } else {
-                        first = false;
-                    }
-
-                    write!(f, "{}={}", name, value)?;
-                }
-
-                write!(f, "}}")
+                write!(f, "{}", join(", ", map.iter().map(mapping("="))))
+            }
+            Value::RecordType(map) => {
+                write!(f, "{{{}}}", join(", ", map.iter().map(mapping(": "))))
             }
             Value::Tuple(vec) => {
-                write!(f, "(")?;
-
-                let mut first = true;
-
-                for value in vec.iter() {
-                    if !first {
-                        write!(f, ", ")?;
-                    } else {
-                        first = false;
-                    }
-
-                    write!(f, "{}", value)?;
-                }
-
-                write!(f, ")")
+                write!(f, "({})", join(", ", vec.iter()))
+            }
+            Value::TupleType(vec) => {
+                write!(f, "type ({})", join(", ", vec.iter()))
             }
             Value::Number(n) => write!(f, "{}", n),
+            Value::NumberType => write!(f, "Number"),
             Value::String_(s) => write!(f, "{:?}", s),
+            Value::StringType => write!(f, "String"),
         }
     }
 }
