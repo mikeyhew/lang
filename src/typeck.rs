@@ -1,0 +1,122 @@
+use {
+    crate::{
+        ast::{Expr, ExprKind, Name, Span},
+        util::{Map, Context, join, mapping},
+        vm::{self, Value},
+    },
+    derive_more::{Display},
+    std::{
+        cell::RefCell,
+        mem,
+    }
+};
+
+#[derive(Debug, Display, Clone, Eq, PartialEq)]
+pub enum Type {
+    #[display(fmt = "Nil")]
+    Nil,
+    #[display(fmt = "{{{}}}", r#"join(", ", _0.iter().map(mapping(": ")))"#)]
+    Record(Map<Name, Type>),
+    #[display(fmt = "type ({})", r#"join(", ", _0.iter())"#)]
+    Tuple(Vec<Type>),
+    #[display(fmt = "Number")]
+    Number,
+    #[display(fmt = "String")]
+    String_,
+    #[display(fmt = "Type")]
+    Type,
+    #[display(fmt = "TypeError")]
+    Error,
+}
+
+pub type TypeContext = Context<Type>;
+
+type ErrorContext = Vec<TypeError>;
+
+thread_local! {
+    static ERROR_CONTEXT: RefCell<ErrorContext> = RefCell::new(ErrorContext::new());
+}
+
+pub struct TypeError {
+    pub message: String,
+    pub span: Span,
+}
+
+impl TypeError {
+    fn emit(self) {
+        ERROR_CONTEXT.with(|errors|{
+            errors.borrow_mut().push(self);
+        })
+    }
+}
+
+macro_rules! type_error {
+    ($span:expr, $($fmt_args:tt)*) => {{
+        let error = TypeError {
+            message: format!($($fmt_args)*),
+            span: $span.clone(),
+        };
+
+        error.emit();
+
+        Type::Error
+    }};
+}
+
+pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<TypeError>> {
+    assert!(ERROR_CONTEXT.with(|errors| errors.borrow().len() == 0));
+
+    let ty = infer_type_internal(expr, type_context);
+
+    ERROR_CONTEXT.with(|errors| {
+        if errors.borrow().len() == 0 {
+            Ok(ty)
+        } else {
+            // replace ERROR_CONTEXT with an empty vec, and return the errors we just got from it
+            Err(mem::replace(&mut *errors.borrow_mut(), Vec::new()))
+        }
+    })
+}
+
+fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
+    match &expr.kind {
+        ExprKind::EmptyRecord => Type::Nil,
+        ExprKind::Tuple(ref vec) if vec.len() == 0 => Type::Nil,
+
+        ExprKind::NumberLiteral(_) => Type::Number,
+        ExprKind::StringLiteral(_) => Type::String_,
+
+        ExprKind::Tuple(vec) => {
+            // TODO: support dependent tuples
+            Type::Tuple(vec.iter().map(|e| infer_type_internal(e, type_context)).collect())
+        }
+        ExprKind::TupleFieldAccess(..) => unimplemented!("TupleFieldAccess"),
+
+        ExprKind::RecordValue(map) => {
+            // TODO: handle dependent records
+            Type::Record(map.iter().map(|(n, e)| (n.name.clone(), infer_type_internal(e, type_context))).collect())
+        }
+        ExprKind::RecordFieldAccess(..) => unimplemented!("RecordFieldAccess"),
+
+        ExprKind::Block(..) => unimplemented!("Block"),
+
+        ExprKind::Let(ident, value_expr, body_expr) => {
+            let value_type = infer_type_internal(value_expr, type_context);
+            let type_context = type_context.extend(ident.name.clone(), value_type);
+
+            infer_type_internal(body_expr, &type_context)
+        },
+
+        ExprKind::Var(ident) => {
+            match type_context.lookup(&ident.name) {
+                Some(ty) => ty.clone(),
+                None => type_error!(ident.span, "Undeclared variable {}", ident.name),
+            }
+        }
+
+        ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
+
+        ExprKind::RecordType(_) |
+        ExprKind::TupleType(_) => Type::Type,
+    }
+}

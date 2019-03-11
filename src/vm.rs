@@ -6,18 +6,18 @@ use {
             Name,
             Number,
         },
+        typeck::Type,
         util::{
+            Context,
+            Map,
             join,
             mapping,
         }
     },
     derive_more::Display,
-    std::{
-        fmt,
-    },
 };
 
-pub type Map<K, V> = fnv::FnvHashMap<K, V>;
+pub type ValueContext = Context<Value>;
 
 #[derive(Debug, Display, Clone)]
 #[display(fmt = "TypeError: {}", _0)]
@@ -29,43 +29,20 @@ macro_rules! type_error {
     };
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Display, Clone, Eq, PartialEq)]
 pub enum Value {
+    #[display(fmt = "nil")]
     Nil,
-    NilType,
+    #[display(fmt = "{{{}}}", r#"join(", ", _0.iter().map(mapping("=")))"#)]
     Record(Map<Name, Value>),
-    RecordType(Map<Name, Value>),
+    #[display(fmt = "type ({})", r#"join(", ", _0.iter())"#)]
     Tuple(Vec<Value>),
-    TupleType(Vec<Value>),
+    #[display(fmt = "{}", _0)]
     Number(Number),
-    NumberType,
+    #[display(fmt = "{}", _0)]
     String_(String),
-    StringType,
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Nil => write!(f, "nil"),
-            Value::NilType => write!(f, "Nil"),
-            Value::Record(map) => {
-                write!(f, "{}", join(", ", map.iter().map(mapping("="))))
-            }
-            Value::RecordType(map) => {
-                write!(f, "{{{}}}", join(", ", map.iter().map(mapping(": "))))
-            }
-            Value::Tuple(vec) => {
-                write!(f, "({})", join(", ", vec.iter()))
-            }
-            Value::TupleType(vec) => {
-                write!(f, "type ({})", join(", ", vec.iter()))
-            }
-            Value::Number(n) => write!(f, "{}", n),
-            Value::NumberType => write!(f, "Number"),
-            Value::String_(s) => write!(f, "{:?}", s),
-            Value::StringType => write!(f, "String"),
-        }
-    }
+    #[display(fmt = "{}", _0)]
+    Type(Type),
 }
 
 impl Value {
@@ -104,41 +81,35 @@ impl Value {
     }
 }
 
-pub struct Context {
-    map: Map<Name, Value>,
+pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, TypeError> {
+    let value = evaluate(expr, context)?;
+
+    Ok(match value {
+        Value::Type(ty) => ty,
+        _ => type_error!("expected a type, found {}", value),
+    })
 }
 
-impl Context {
-    pub fn new() -> Self {
-        Self {
-            map: Map::default(),
-        }
-    }
-
-    pub fn extend(&self, name: Name, value: Value) -> Self {
-        let mut map = self.map.clone();
-        map.insert(name, value);
-        Self {map}
-    }
-
-    pub fn get(&self, name: &Name) -> Option<&Value> {
-        self.map.get(name)
-    }
-}
-
-pub fn evaluate(expr: &Expr, context: &Context) -> Result<Value, TypeError> {
+pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError> {
     Ok(match &expr.kind {
         ExprKind::EmptyRecord => Value::Nil,
         ExprKind::RecordValue(entries) => {
-            let mut map = Map::default();
-
-            for (ident, expr) in entries.iter() {
+            let map = entries.iter().try_fold(Map::default(), |mut map, (ident, expr)| {
                 map.insert(ident.name.clone(), evaluate(expr, context)?);
-            }
+                Ok(map)
+            })?;
 
             Value::Record(map)
         }
-        ExprKind::RecordType(..) => unimplemented!("RecordType"),
+        ExprKind::RecordType(entries) => {
+            let map = entries.iter().try_fold(Map::default(), |mut map, (ident, expr)| {
+                map.insert(ident.name.clone(), evaluate_type(expr, context)?);
+                Ok(map)
+            })?;
+
+            Value::Type(Type::Record(map))
+        }
+
         ExprKind::Tuple(exprs) => {
             match exprs.len() {
                 0 => Value::Nil,
@@ -154,6 +125,7 @@ pub fn evaluate(expr: &Expr, context: &Context) -> Result<Value, TypeError> {
                 }
             }
         }
+        ExprKind::TupleType(types) => unimplemented!("TupleType"),
         ExprKind::Block(..) => unimplemented!("Block"),
         ExprKind::Let(ref ident, ref value, ref body) => {
             let value = evaluate(value, context)?;
@@ -161,7 +133,7 @@ pub fn evaluate(expr: &Expr, context: &Context) -> Result<Value, TypeError> {
             evaluate(body, &context)?
         }
         ExprKind::Var(ident) => {
-            match context.get(&ident.name) {
+            match context.lookup(&ident.name) {
                 Some(value) => value.clone(),
                 None => type_error!("Unknown variable {}", ident.name),
             }
@@ -175,5 +147,7 @@ pub fn evaluate(expr: &Expr, context: &Context) -> Result<Value, TypeError> {
         ExprKind::NumberLiteral(number) => Value::Number(*number),
         ExprKind::StringLiteral(s) => Value::String_(s.clone()),
         ExprKind::Parenthesized(ref expr) => evaluate(expr, context)?,
+
+
     })
 }

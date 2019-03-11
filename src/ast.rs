@@ -57,6 +57,7 @@ pub enum ExprKind {
 	RecordValue(Vec<(Ident, Expr)>),
 	RecordType(Vec<(Ident, Expr)>),
 	Tuple(Vec<Expr>),
+	TupleType(Vec<Expr>),
 	Block(Vec<Expr>, Option<Box<Expr>>),
 	Var(Ident),
 	Let(Ident, Box<Expr>, Box<Expr>),
@@ -89,7 +90,7 @@ impl fmt::Display for ExprKind {
 #[display(fmt = "{}", name)]
 pub struct Ident {
 	pub name: Name,
-	span: Span,
+	pub span: Span,
 }
 
 impl Ident {

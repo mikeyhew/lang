@@ -4,13 +4,19 @@
 mod ast;
 #[allow(rust_2018_idioms)]
 mod parser;
+mod typeck;
 mod util;
 mod vm;
 
-use rustyline::{
-    error::ReadlineError::{Interrupted, Eof},
+use {
+    crate::{
+        parser::ExprParser,
+        typeck::infer_type,
+    },
+    rustyline::{
+        error::ReadlineError::{Interrupted, Eof},
+    },
 };
-use parser::ExprParser;
 
 fn main() {
     let mut line_reader = rustyline::Editor::<()>::new();
@@ -45,12 +51,21 @@ fn main() {
                 continue
             }
         };
-        // println!("{:#?}", expr);
-        // // empty line
-        // println!();
 
-        let context = vm::Context::new();
+        let type_context = typeck::TypeContext::new();
+        let ty = match infer_type(&expr, &type_context){
+            Ok(ty) => ty,
+            Err(errors) => {
+                for error in errors {
+                    println!("{} at {}", error.message, error.span);
+                }
+                continue
+            }
+        };
 
+        println!("type: {}", ty);
+
+        let context = vm::ValueContext::new();
         let value = match vm::evaluate(&expr, &context) {
             Ok(value) => value,
             Err(err) => {
