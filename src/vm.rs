@@ -91,7 +91,7 @@ pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, TypeEr
 
 pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError> {
     Ok(match &expr.kind {
-        ExprKind::EmptyRecord => Value::Nil,
+        ExprKind::EmptyRecord | ExprKind::EmptyTuple => Value::Nil,
         ExprKind::RecordValue(entries) => {
             let map = entries.iter().try_fold(Map::default(), |mut map, (ident, expr)| {
                 map.insert(ident.name.clone(), evaluate(expr, context)?);
@@ -108,7 +108,6 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError>
 
             Value::Type(Type::Record(map))
         }
-
         ExprKind::Tuple(exprs) => {
             match exprs.len() {
                 0 => Value::Nil,

@@ -80,8 +80,7 @@ pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<T
 
 fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
     match &expr.kind {
-        ExprKind::EmptyRecord => Type::Nil,
-        ExprKind::Tuple(ref vec) if vec.len() == 0 => Type::Nil,
+        ExprKind::EmptyRecord | ExprKind::EmptyTuple => Type::Nil,
 
         ExprKind::NumberLiteral(_) => Type::Number,
         ExprKind::StringLiteral(_) => Type::String_,

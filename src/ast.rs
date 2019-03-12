@@ -56,6 +56,7 @@ pub enum ExprKind {
 	EmptyRecord,
 	RecordValue(Vec<(Ident, Expr)>),
 	RecordType(Vec<(Ident, Expr)>),
+	EmptyTuple,
 	Tuple(Vec<Expr>),
 	TupleType(Vec<Expr>),
 	Block(Vec<Expr>, Option<Box<Expr>>),

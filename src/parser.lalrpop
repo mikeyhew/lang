@@ -25,6 +25,7 @@ SmallExprKind: ExprKind = {
     EmptyRecord,
     RecordValue,
     RecordType,
+    EmptyTuple,
     Tuple,
     Block,
     NumberLiteral,
@@ -57,9 +58,11 @@ RecordFieldType: (Ident, Expr) = {
     <name:Ident> ":" <typ:Expr> => (name, typ)
 }
 
+EmptyTuple: ExprKind = {
+    "(" ")" => ExprKind::EmptyTuple,
+}
+
 Tuple: ExprKind = {
-    "(" ")" => ExprKind::Tuple(Vec::new()),
-    "(" <Expr> "," ")" => ExprKind::Tuple(vec![<>]),
     "(" <first:Expr> "," <rest:CommaAtLeast1<Expr>> ")" => {
         let mut all = vec![first];
         all.extend(rest);
