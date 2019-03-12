@@ -1,7 +1,6 @@
 use codespan::{ByteSpan, ByteIndex};
 use std::{
 	convert::TryInto,
-	fmt,
 };
 use derive_more::{
 	Display,
@@ -38,8 +37,7 @@ impl<'a> From<&'a str> for Name {
 #[derive(Debug, Display, From, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Number(i64);
 
-#[derive(Debug, Display, Clone)]
-#[display(fmt = "{}", kind)]
+#[derive(Debug, Clone)]
 pub struct Expr {
 	pub kind: ExprKind,
 	pub span: Span,
@@ -53,10 +51,10 @@ impl Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-	EmptyRecord,
+	Nil,
+	NilType,
 	RecordValue(Vec<(Ident, Expr)>),
 	RecordType(Vec<(Ident, Expr)>),
-	EmptyTuple,
 	Tuple(Vec<Expr>),
 	TupleType(Vec<Expr>),
 	Block(Vec<Expr>, Option<Box<Expr>>),
@@ -67,24 +65,6 @@ pub enum ExprKind {
 	NumberLiteral(Number),
 	StringLiteral(String),
 	Parenthesized(Box<Expr>),
-}
-
-impl fmt::Display for ExprKind {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			ExprKind::EmptyRecord => write!(f, "{{}}"),
-			ExprKind::RecordValue(pairs) => {
-				write!(f, "{{")?;
-
-				for (key, value) in pairs {
-					write!(f, "{}={}", key, value)?;
-				}
-
-				write!(f, "}}")
-			}
-			_ => unimplemented!()
-		}
-	}
 }
 
 #[derive(Debug, Display, Clone)]

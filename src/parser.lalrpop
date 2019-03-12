@@ -23,9 +23,11 @@ SmallExpr: Expr = {
 
 SmallExprKind: ExprKind = {
     EmptyRecord,
+    EmptyRecordType,
     RecordValue,
     RecordType,
     EmptyTuple,
+    EmptyTupleType,
     Tuple,
     Block,
     NumberLiteral,
@@ -39,7 +41,11 @@ SmallExprKind: ExprKind = {
 }
 
 EmptyRecord: ExprKind = {
-    "{" "}" => ExprKind::EmptyRecord
+    "{" "}" => ExprKind::Nil,
+}
+
+EmptyRecordType: ExprKind = {
+    "type" "{" "}" => ExprKind::NilType,
 }
 
 RecordValue: ExprKind = {
@@ -59,15 +65,19 @@ RecordFieldType: (Ident, Expr) = {
 }
 
 EmptyTuple: ExprKind = {
-    "(" ")" => ExprKind::EmptyTuple,
+    "(" ")" => ExprKind::Nil,
+}
+
+EmptyTupleType: ExprKind = {
+    "type" "(" ")" => ExprKind::NilType,
 }
 
 Tuple: ExprKind = {
-    "(" <first:Expr> "," <rest:CommaAtLeast1<Expr>> ")" => {
-        let mut all = vec![first];
-        all.extend(rest);
-        ExprKind::Tuple(all)
-    }
+    "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::Tuple(elems),
+}
+
+TupleType: ExprKind = {
+    "type" "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::TupleType(elems),
 }
 
 Block: ExprKind = {
@@ -159,6 +169,14 @@ Comma<Rule>: Vec<Rule> = {
 
 CommaAtLeast1<Rule>: Vec<Rule> = {
     <first:Rule> <rest:("," <Rule>)*> ","? => {
+        let mut rules = vec![first];
+        rules.extend(rest);
+        rules
+    }
+}
+
+CommaAtLeast2<Rule>: Vec<Rule> = {
+    <first:Rule> "," <rest:CommaAtLeast1<Rule>> => {
         let mut rules = vec![first];
         rules.extend(rest);
         rules

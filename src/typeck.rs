@@ -2,7 +2,6 @@ use {
     crate::{
         ast::{Expr, ExprKind, Name, Span},
         util::{Map, join, mapping},
-        vm::{self, Value},
     },
     derive_more::{Display},
     std::{
@@ -80,7 +79,7 @@ pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<T
 
 fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
     match &expr.kind {
-        ExprKind::EmptyRecord | ExprKind::EmptyTuple => Type::Nil,
+        ExprKind::Nil => Type::Nil,
 
         ExprKind::NumberLiteral(_) => Type::Number,
         ExprKind::StringLiteral(_) => Type::String_,
@@ -115,7 +114,9 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
 
         ExprKind::RecordValue(map) => {
             // TODO: handle dependent records
-            Type::Record(map.iter().map(|(n, e)| (n.name.clone(), infer_type_internal(e, type_context))).collect())
+            Type::Record(map.iter().map(|(n, e)| {
+                (n.name.clone(), infer_type_internal(e, type_context))
+            }).collect())
         }
         ExprKind::RecordFieldAccess(..) => unimplemented!("RecordFieldAccess"),
 
@@ -137,6 +138,7 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
 
         ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
 
+        ExprKind::NilType |
         ExprKind::RecordType(_) |
         ExprKind::TupleType(_) => Type::Type,
     }

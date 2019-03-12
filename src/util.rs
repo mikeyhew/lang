@@ -1,7 +1,4 @@
 use {
-    crate::{
-        ast::Name,
-    },
     derive_more::Display,
     std::fmt::{self, Display},
 };

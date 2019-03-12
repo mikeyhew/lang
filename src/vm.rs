@@ -91,7 +91,9 @@ pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, TypeEr
 
 pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError> {
     Ok(match &expr.kind {
-        ExprKind::EmptyRecord | ExprKind::EmptyTuple => Value::Nil,
+        ExprKind::Nil => Value::Nil,
+        ExprKind::NilType => Value::Type(Type::Nil),
+
         ExprKind::RecordValue(entries) => {
             let map = entries.iter().try_fold(Map::default(), |mut map, (ident, expr)| {
                 map.insert(ident.name.clone(), evaluate(expr, context)?);
@@ -109,21 +111,21 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError>
             Value::Type(Type::Record(map))
         }
         ExprKind::Tuple(exprs) => {
-            match exprs.len() {
-                0 => Value::Nil,
-                1 => evaluate(&exprs[0], context)?,
-                _ => {
-                    let mut values = Vec::new();
+            let values = exprs.iter().try_fold(Vec::new(), |mut values, expr| {
+                values.push(evaluate(expr, context)?);
+                Ok(values)
+            })?;
 
-                    for expr in exprs.iter() {
-                        values.push(evaluate(expr, context)?);
-                    }
-
-                    Value::Tuple(values)
-                }
-            }
+            Value::Tuple(values)
         }
-        ExprKind::TupleType(types) => unimplemented!("TupleType"),
+        ExprKind::TupleType(exprs) => {
+            let values = exprs.iter().try_fold(Vec::new(), |mut values, expr| {
+                values.push(evaluate_type(expr, context)?);
+                Ok(values)
+            })?;
+
+            Value::Type(Type::Tuple(values))
+        }
         ExprKind::Block(..) => unimplemented!("Block"),
         ExprKind::Let(ref ident, ref value, ref body) => {
             let value = evaluate(value, context)?;
@@ -145,7 +147,5 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError>
         ExprKind::NumberLiteral(number) => Value::Number(*number),
         ExprKind::StringLiteral(s) => Value::String_(s.clone()),
         ExprKind::Parenthesized(ref expr) => evaluate(expr, context)?,
-
-
     })
 }
