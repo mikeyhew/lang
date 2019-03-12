@@ -38,7 +38,7 @@ pub enum Value {
     Tuple(Vec<Value>),
     #[display(fmt = "{}", _0)]
     Number(Number),
-    #[display(fmt = "{}", _0)]
+    #[display(fmt = "{:?}", _0)]
     String_(String),
     #[display(fmt = "{}", _0)]
     Type(Type),
