@@ -90,7 +90,29 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
             // TODO: support dependent tuples
             Type::Tuple(vec.iter().map(|e| infer_type_internal(e, type_context)).collect())
         }
-        ExprKind::TupleFieldAccess(..) => unimplemented!("TupleFieldAccess"),
+        ExprKind::TupleFieldAccess(tuple_expr, number) => {
+            let tuple_type = infer_type_internal(tuple_expr, type_context);
+
+            match &tuple_type {
+                Type::Tuple(field_types) => {
+                    if let Some(field_type) = field_types.get(*number){
+                        field_type.clone()
+                    } else {
+                        type_error!(
+                            expr.span,
+                            "field number {} is out of range for tuple {}",
+                            number, tuple_type
+                        )
+                    }
+                }
+                _ => type_error!(
+                    tuple_expr.span,
+                    "expected a tuple with at least {} elements, found {}",
+                    number + 1,
+                    tuple_type
+                )
+            }
+        }
 
         ExprKind::RecordValue(map) => {
             // TODO: handle dependent records

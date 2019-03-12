@@ -42,7 +42,7 @@ pub struct Number(i64);
 #[display(fmt = "{}", kind)]
 pub struct Expr {
 	pub kind: ExprKind,
-	span: Span,
+	pub span: Span,
 }
 
 impl Expr {
