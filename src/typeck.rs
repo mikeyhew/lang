@@ -1,6 +1,6 @@
 use {
     crate::{
-        ast::{Expr, ExprKind, Name, Span},
+        ast::{Expr, ExprKind, StmtKind, Name, Span},
         util::{Map, join, mapping},
     },
     derive_more::{Display},
@@ -120,14 +120,21 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         }
         ExprKind::RecordFieldAccess(..) => unimplemented!("RecordFieldAccess"),
 
-        ExprKind::Block(..) => unimplemented!("Block"),
+        ExprKind::Block(stmts, expr) => {
+            let type_context = stmts.iter().fold(type_context.clone(), |type_context, stmt| {
+                match &stmt.kind {
+                    StmtKind::Let(ident, expr) => {
+                        let ty = infer_type_internal(expr, &type_context);
+                        type_context.extend(ident.name.clone(), ty)
+                    }
+                }
+            });
 
-        ExprKind::Let(ident, value_expr, body_expr) => {
-            let value_type = infer_type_internal(value_expr, type_context);
-            let type_context = type_context.extend(ident.name.clone(), value_type);
-
-            infer_type_internal(body_expr, &type_context)
-        },
+            match expr {
+                Some(expr) => infer_type_internal(expr, &type_context),
+                None => Type::Nil,
+            }
+        }
 
         ExprKind::Var(ident) => {
             match type_context.lookup(&ident.name) {

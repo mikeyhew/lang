@@ -57,14 +57,30 @@ pub enum ExprKind {
 	RecordType(Vec<(Ident, Expr)>),
 	Tuple(Vec<Expr>),
 	TupleType(Vec<Expr>),
-	Block(Vec<Expr>, Option<Box<Expr>>),
+	Block(Vec<Stmt>, Option<Box<Expr>>),
 	Var(Ident),
-	Let(Ident, Box<Expr>, Box<Expr>),
 	RecordFieldAccess(Box<Expr>, Ident),
 	TupleFieldAccess(Box<Expr>, usize),
 	NumberLiteral(Number),
 	StringLiteral(String),
 	Parenthesized(Box<Expr>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Stmt {
+	pub kind: StmtKind,
+	pub span: Span,
+}
+
+impl Stmt {
+	pub fn new((kind, span): (StmtKind, Span)) -> Self {
+		Self {kind, span}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum StmtKind {
+	Let(Ident, Box<Expr>),
 }
 
 #[derive(Debug, Display, Clone)]

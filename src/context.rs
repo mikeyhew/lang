@@ -8,6 +8,7 @@ use {
     lazy_static::lazy_static,
 };
 
+#[derive(Clone)]
 pub struct Context<Value> {
     map: Map<Name, Value>,
 }

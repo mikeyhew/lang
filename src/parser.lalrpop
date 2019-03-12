@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, ExprKind, Ident, Span},
+    ast::{Expr, ExprKind, Stmt, StmtKind, Ident, Span},
     util::unescape,
 };
 use std::{
@@ -13,7 +13,6 @@ pub Expr: Expr = {
 }
 
 ExprKind: ExprKind = {
-    Let,
     SmallExprKind,
 }
 
@@ -38,6 +37,14 @@ SmallExprKind: ExprKind = {
     "(" <expr:Expr> ")" => {
         ExprKind::Parenthesized(Box::new(expr))
     }
+}
+
+Stmt: Stmt = {
+    Spanned<StmtKind> => Stmt::new(<>),
+}
+
+StmtKind: StmtKind = {
+    Let,
 }
 
 EmptyRecord: ExprKind = {
@@ -81,23 +88,13 @@ TupleType: ExprKind = {
 }
 
 Block: ExprKind = {
-    "{" <first:Expr> <rest:( ";" <Expr> )*> <ending_semi:";"?> "}" => {
-        let mut statement_exprs = vec![first];
-        statement_exprs.extend(rest);
-
-        let last = if ending_semi.is_none() {
-            Some(Box::new(statement_exprs.pop().unwrap()))
-        } else {
-            None
-        };
-
-        ExprKind::Block(statement_exprs, last)
-    }
+    "{" <expr:Expr> "}" => ExprKind::Block(Vec::new(), Some(Box::new(expr))),
+    "{" <stmts:(<Stmt> ";")+> <expr:Expr?> "}" => ExprKind::Block(stmts, expr.map(Box::new)),
 }
 
-Let: ExprKind = {
-    "let" <name:Ident> "=" <value:Expr> "in" <body:Expr> => {
-        ExprKind::Let(name, Box::new(value), Box::new(body))
+Let: StmtKind = {
+    "let" <name:Ident> "=" <value:Expr> => {
+        StmtKind::Let(name, Box::new(value))
     }
 }
 

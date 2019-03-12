@@ -3,6 +3,7 @@ use {
         ast::{
             Expr,
             ExprKind,
+            StmtKind,
             Name,
             Number,
         },
@@ -126,11 +127,20 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError>
 
             Value::Type(Type::Tuple(values))
         }
-        ExprKind::Block(..) => unimplemented!("Block"),
-        ExprKind::Let(ref ident, ref value, ref body) => {
-            let value = evaluate(value, context)?;
-            let context = context.extend(ident.name.clone(), value);
-            evaluate(body, &context)?
+        ExprKind::Block(stmts, expr) => {
+            let context = stmts.iter().try_fold(context.clone(), |context, stmt| {
+                match &stmt.kind {
+                    StmtKind::Let(ident, expr) => {
+                        let value = evaluate(expr, &context)?;
+                        Ok(context.extend(ident.name.clone(), value))
+                    }
+                }
+            })?;
+
+            match expr {
+                Some(expr) => evaluate(expr, &context)?,
+                None => Value::Nil,
+            }
         }
         ExprKind::Var(ident) => {
             match context.lookup(&ident.name) {
