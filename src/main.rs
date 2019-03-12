@@ -2,6 +2,7 @@
 #![allow(unreachable_pub)]
 
 mod ast;
+mod context;
 #[allow(rust_2018_idioms)]
 mod parser;
 mod typeck;

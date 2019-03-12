@@ -8,7 +8,6 @@ use {
         },
         typeck::Type,
         util::{
-            Context,
             Map,
             join,
             mapping,
@@ -17,7 +16,7 @@ use {
     derive_more::Display,
 };
 
-pub type ValueContext = Context<Value>;
+pub use crate::context::ValueContext;
 
 #[derive(Debug, Display, Clone)]
 #[display(fmt = "TypeError: {}", _0)]

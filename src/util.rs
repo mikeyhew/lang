@@ -77,28 +77,3 @@ pub fn mapping<K: Display, V: Display>(
 }
 
 pub type Map<K, V> = fnv::FnvHashMap<K, V>;
-
-pub struct Context<Value> {
-    map: Map<Name, Value>,
-}
-
-impl<Value> Context<Value> {
-    pub fn new() -> Self {
-        Self {
-            map: Map::default(),
-        }
-    }
-
-    pub fn extend(&self, name: Name, value: Value) -> Self
-    where
-        Value: Clone,
-    {
-        let mut map = self.map.clone();
-        map.insert(name, value);
-        Self {map}
-    }
-
-    pub fn lookup(&self, name: &Name) -> Option<&Value> {
-        self.map.get(name)
-    }
-}

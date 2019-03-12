@@ -1,7 +1,7 @@
 use {
     crate::{
         ast::{Expr, ExprKind, Name, Span},
-        util::{Map, Context, join, mapping},
+        util::{Map, join, mapping},
         vm::{self, Value},
     },
     derive_more::{Display},
@@ -10,6 +10,8 @@ use {
         mem,
     }
 };
+
+pub use crate::context::TypeContext;
 
 #[derive(Debug, Display, Clone, Eq, PartialEq)]
 pub enum Type {
@@ -28,8 +30,6 @@ pub enum Type {
     #[display(fmt = "TypeError")]
     Error,
 }
-
-pub type TypeContext = Context<Type>;
 
 type ErrorContext = Vec<TypeError>;
 
