@@ -34,7 +34,7 @@ pub enum Value {
     Nil,
     #[display(fmt = "{{{}}}", r#"join(", ", _0.iter().map(mapping("=")))"#)]
     Record(Map<Name, Value>),
-    #[display(fmt = "type ({})", r#"join(", ", _0.iter())"#)]
+    #[display(fmt = "({})", r#"join(", ", _0.iter())"#)]
     Tuple(Vec<Value>),
     #[display(fmt = "{}", _0)]
     Number(Number),
