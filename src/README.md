@@ -2,6 +2,34 @@
 
 A programming language. Someday it may have a name; for now it's just a little side project of mine.
 
+# Usage
+
+```
+git clone https://github.com/mikeyhew/lang
+cd lang
+cargo install lalrpop # if you don't have it already
+lalrpop src/parser.lalrpop
+cargo run
+```
+
+Some examples of valid expressions so far:
+
+- Records
+    ```
+    > {name="Michael", adjective="Awesome", rating_out_of_10=10}
+    {rating_out_of_10=10, adjective="Awesome", name="Michael"}: {rating_out_of_10: Number, adjective: String, name: String}
+    ```
+- Tuples
+    ```
+    > ("Michael", "is", "Awesome", "times", 1000)
+    ("Michael", "is", "Awesome", "times", 1000): type (String, String, String, String, Number)
+    ```
+- Block Expressions
+    ```
+    > {let x = 1; let y = 2; (x, y)}
+    (1, 2): type (Number, Number)
+    ```
+
 ## Dreams
 
 Things I want to try to have at some point:
