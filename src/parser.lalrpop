@@ -1,5 +1,11 @@
 use crate::{
-    ast::{Expr, ExprKind, Stmt, StmtKind, Ident, Span},
+    ast::{
+        Expr, ExprKind,
+        Stmt, StmtKind,
+        ReplLine, ReplLineKind,
+        Ident,
+        Span,
+    },
     util::unescape,
 };
 use std::{
@@ -8,7 +14,18 @@ use std::{
 
 grammar;
 
-pub Expr: Expr = {
+pub ReplLine: ReplLine = {
+    Spanned<ReplLineKind> => {
+        let (kind, span) = <>;
+        ReplLine {kind, span}
+    }
+}
+
+ReplLineKind: ReplLineKind = {
+    <stmts:(<Stmt> ";")*> <expr:Expr?> => ReplLineKind::Block(stmts, expr),
+}
+
+Expr: Expr = {
     Spanned<ExprKind> => Expr::new(<>),
 }
 

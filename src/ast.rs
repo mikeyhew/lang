@@ -104,3 +104,15 @@ impl AsRef<Name> for Ident {
 		&self.name
 	}
 }
+
+pub struct ReplLine {
+	pub kind: ReplLineKind,
+	pub span: Span,
+}
+
+pub enum ReplLineKind {
+	/// Like a Block expression, but without braces around it.
+	/// This is the "normal" type of REPL line, as opposed to one with a `:` in front
+	/// Which usually means you are changing a setting (but that's not implemented atm)
+	Block(Vec<Stmt>, Option<Expr>),
+}

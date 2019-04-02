@@ -1,6 +1,6 @@
 use {
     crate::{
-        ast::{Expr, ExprKind, StmtKind, Name, Span},
+        ast::{Expr, ExprKind, Stmt, StmtKind, Name, Span},
         util::{Map, join, mapping},
     },
     derive_more::{Display},
@@ -30,7 +30,19 @@ pub enum Type {
     Error,
 }
 
-type ErrorContext = Vec<TypeError>;
+pub struct ErrorContext {
+    in_use: bool,
+    errors: Vec<TypeError>,
+}
+
+impl ErrorContext {
+    fn new() -> Self {
+        Self {
+            in_use: false,
+            errors: Vec::new(),
+        }
+    }
+}
 
 thread_local! {
     static ERROR_CONTEXT: RefCell<ErrorContext> = RefCell::new(ErrorContext::new());
@@ -43,8 +55,10 @@ pub struct TypeError {
 
 impl TypeError {
     fn emit(self) {
-        ERROR_CONTEXT.with(|errors|{
-            errors.borrow_mut().push(self);
+        ERROR_CONTEXT.with(|error_context|{
+            assert!(error_context.borrow().in_use);
+
+            error_context.borrow_mut().errors.push(self);
         })
     }
 }
@@ -62,19 +76,31 @@ macro_rules! type_error {
     }};
 }
 
-pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<TypeError>> {
-    assert!(ERROR_CONTEXT.with(|errors| errors.borrow().len() == 0));
+/// Takes a function that potentially stores type errors in ERROR_CONTEXT,
+/// and returns Err(Vec<TypeError>) if there are errors, and
+/// Ok(T) otherwise
+fn collect_type_errors<T>(f: impl FnOnce() -> T) -> Result<T, Vec<TypeError>> {
+    ERROR_CONTEXT.with(|error_context| {
+        assert!(!error_context.borrow().in_use);
+        error_context.borrow_mut().in_use = true;
+    });
 
-    let ty = infer_type_internal(expr, type_context);
+    let value = f();
 
-    ERROR_CONTEXT.with(|errors| {
-        if errors.borrow().len() == 0 {
-            Ok(ty)
+    ERROR_CONTEXT.with(|error_context| {
+        let error_context = mem::replace(&mut *error_context.borrow_mut(), ErrorContext::new());
+        assert!(error_context.in_use);
+
+        if error_context.errors.len() == 0 {
+            Ok(value)
         } else {
-            // replace ERROR_CONTEXT with an empty vec, and return the errors we just got from it
-            Err(mem::replace(&mut *errors.borrow_mut(), Vec::new()))
+            Err(error_context.errors)
         }
     })
+}
+
+pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<TypeError>> {
+    collect_type_errors(|| infer_type_internal(expr, type_context))
 }
 
 fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
@@ -87,6 +113,22 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         ExprKind::Tuple(vec) => {
             // TODO: support dependent tuples
             Type::Tuple(vec.iter().map(|e| infer_type_internal(e, type_context)).collect())
+        }
+        ExprKind::TupleType(vec) => {
+            vec.iter().for_each(|ty_expr| {
+                match infer_type_internal(ty_expr, type_context) {
+                    Type::Type | Type::Error => (),
+                    ty => {
+                        type_error!(
+                            ty_expr.span,
+                            "expected type of tuple field to be a type, found a {}",
+                            ty,
+                        );
+                    }
+                }
+            });
+
+            Type::Type
         }
         ExprKind::TupleFieldAccess(tuple_expr, number) => {
             let tuple_type = infer_type_internal(tuple_expr, type_context);
@@ -106,28 +148,38 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
                 _ => type_error!(
                     tuple_expr.span,
                     "expected a tuple with at least {} elements, found {}",
-                    number + 1,
-                    tuple_type
+                    number + 1, tuple_type
                 )
             }
         }
 
-        ExprKind::RecordValue(map) => {
+        ExprKind::RecordValue(pairs) => {
             // TODO: handle dependent records
-            Type::Record(map.iter().map(|(n, e)| {
-                (n.name.clone(), infer_type_internal(e, type_context))
+            Type::Record(pairs.iter().map(|(ident, expr)| {
+                (ident.name.clone(), infer_type_internal(expr, type_context))
             }).collect())
+        }
+        ExprKind::RecordType(pairs) => {
+            pairs.iter().for_each(|(_, ty_expr)| {
+                match infer_type_internal(ty_expr, type_context) {
+                    Type::Type | Type::Error => (),
+                    ty => {
+                        type_error!(
+                            ty_expr.span,
+                            "expected type of record field to be a type, found a {}",
+                            ty,
+                        );
+                    }
+                }
+            });
+
+            Type::Type
         }
         ExprKind::RecordFieldAccess(..) => unimplemented!("RecordFieldAccess"),
 
         ExprKind::Block(stmts, expr) => {
             let type_context = stmts.iter().fold(type_context.clone(), |type_context, stmt| {
-                match &stmt.kind {
-                    StmtKind::Let(ident, expr) => {
-                        let ty = infer_type_internal(expr, &type_context);
-                        type_context.extend(ident.name.clone(), ty)
-                    }
-                }
+                typeck_stmt_internal(stmt, &type_context)
             });
 
             match expr {
@@ -145,8 +197,19 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
 
         ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
 
-        ExprKind::NilType |
-        ExprKind::RecordType(_) |
-        ExprKind::TupleType(_) => Type::Type,
+        ExprKind::NilType => Type::Type,
     }
+}
+
+fn typeck_stmt_internal(stmt: &Stmt, type_context: &TypeContext) -> TypeContext {
+    match &stmt.kind {
+        StmtKind::Let(ident, expr) => {
+            let ty = infer_type_internal(expr, &type_context);
+            type_context.extend(ident.name.clone(), ty)
+        }
+    }
+}
+
+pub fn typeck_stmt(stmt: &Stmt, type_context: &TypeContext) -> Result<TypeContext, Vec<TypeError>> {
+    collect_type_errors(|| typeck_stmt_internal(stmt, type_context))
 }

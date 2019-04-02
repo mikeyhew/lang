@@ -3,6 +3,7 @@ use {
         ast::{
             Expr,
             ExprKind,
+            Stmt,
             StmtKind,
             Name,
             Number,
@@ -20,12 +21,12 @@ use {
 pub use crate::context::ValueContext;
 
 #[derive(Debug, Display, Clone)]
-#[display(fmt = "TypeError: {}", _0)]
-pub struct TypeError(String);
+#[display(fmt = "VmError: {}", _0)]
+pub struct VmError(String);
 
 macro_rules! type_error {
     ($($tt:tt)*) => {
-        return Err(TypeError(format!($($tt)*)))
+        return Err(VmError(format!($($tt)*)))
     };
 }
 
@@ -46,7 +47,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn access_record_field(&self, name: &Name) -> Result<Value, TypeError> {
+    fn access_record_field(&self, name: &Name) -> Result<Value, VmError> {
         match self {
             Value::Record(map) => {
                 if let Some(value) = map.get(name) {
@@ -59,7 +60,7 @@ impl Value {
         }
     }
 
-    fn access_tuple_field(&self, number: usize) -> Result<Value, TypeError> {
+    fn access_tuple_field(&self, number: usize) -> Result<Value, VmError> {
         match self {
             Value::Tuple(values) => {
                 let number: usize = number.into();
@@ -81,7 +82,7 @@ impl Value {
     }
 }
 
-pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, TypeError> {
+pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, VmError> {
     let value = evaluate(expr, context)?;
 
     Ok(match value {
@@ -90,7 +91,16 @@ pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, TypeEr
     })
 }
 
-pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError> {
+pub fn evaluate_stmt(stmt: &Stmt, context: &ValueContext) -> Result<ValueContext, VmError> {
+    match &stmt.kind {
+        StmtKind::Let(ident, expr) => {
+            let value = evaluate(expr, &context)?;
+            Ok(context.extend(ident.name.clone(), value))
+        }
+    }
+}
+
+pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, VmError> {
     Ok(match &expr.kind {
         ExprKind::Nil => Value::Nil,
         ExprKind::NilType => Value::Type(Type::Nil),
@@ -128,14 +138,8 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, TypeError>
             Value::Type(Type::Tuple(values))
         }
         ExprKind::Block(stmts, expr) => {
-            let context = stmts.iter().try_fold(context.clone(), |context, stmt| {
-                match &stmt.kind {
-                    StmtKind::Let(ident, expr) => {
-                        let value = evaluate(expr, &context)?;
-                        Ok(context.extend(ident.name.clone(), value))
-                    }
-                }
-            })?;
+            let context = stmts.iter()
+                .try_fold(context.clone(), |context, stmt| evaluate_stmt(stmt, &context))?;
 
             match expr {
                 Some(expr) => evaluate(expr, &context)?,
