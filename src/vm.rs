@@ -121,6 +121,9 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, VmError> {
 
             Value::Type(Type::Record(map))
         }
+        ExprKind::RecordFieldAccess(ref expr, ref field_name) => {
+            evaluate(expr, context)?.access_record_field(&field_name.name)?
+        }
         ExprKind::Tuple(exprs) => {
             let values = exprs.iter().try_fold(Vec::new(), |mut values, expr| {
                 values.push(evaluate(expr, context)?);
@@ -137,6 +140,9 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, VmError> {
 
             Value::Type(Type::Tuple(values))
         }
+        ExprKind::TupleFieldAccess(ref expr, ref field_number) => {
+            evaluate(expr, context)?.access_tuple_field(*field_number)?
+        }
         ExprKind::Block(stmts, expr) => {
             let context = stmts.iter()
                 .try_fold(context.clone(), |context, stmt| evaluate_stmt(stmt, &context))?;
@@ -152,12 +158,6 @@ pub fn evaluate(expr: &Expr, context: &ValueContext) -> Result<Value, VmError> {
                 None => type_error!("Unknown variable {}", ident.name),
             }
         },
-        ExprKind::RecordFieldAccess(ref expr, ref field_name) => {
-            evaluate(expr, context)?.access_record_field(&field_name.name)?
-        }
-        ExprKind::TupleFieldAccess(ref expr, ref field_number) => {
-            evaluate(expr, context)?.access_tuple_field(*field_number)?
-        }
         ExprKind::NumberLiteral(number) => Value::Number(*number),
         ExprKind::StringLiteral(s) => Value::String_(s.clone()),
         ExprKind::Parenthesized(ref expr) => evaluate(expr, context)?,

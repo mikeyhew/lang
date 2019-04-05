@@ -42,15 +42,15 @@ SmallExprKind: ExprKind = {
     EmptyRecordType,
     RecordValue,
     RecordType,
+    RecordFieldAccess,
     EmptyTuple,
     EmptyTupleType,
+    TupleFieldAccess,
     Tuple,
     Block,
     NumberLiteral,
     StringLiteral,
     Var,
-    RecordFieldAccess,
-    TupleFieldAccess,
     "(" <expr:Expr> ")" => {
         ExprKind::Parenthesized(Box::new(expr))
     }
@@ -88,6 +88,10 @@ RecordFieldType: (Ident, Expr) = {
     <name:Ident> ":" <typ:Expr> => (name, typ)
 }
 
+RecordFieldAccess: ExprKind = {
+    <expr:SmallExpr> "." <field_name:Ident> => ExprKind::RecordFieldAccess(Box::new(expr), field_name),
+}
+
 EmptyTuple: ExprKind = {
     "(" ")" => ExprKind::Nil,
 }
@@ -104,6 +108,12 @@ TupleType: ExprKind = {
     "type" "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::TupleType(elems),
 }
 
+TupleFieldAccess: ExprKind = {
+    <expr:SmallExpr> "." <field_number:Digits> => {
+        ExprKind::TupleFieldAccess(Box::new(expr), field_number.try_into().expect("field number too big"))
+    }
+}
+
 Block: ExprKind = {
     "{" <expr:Expr> "}" => ExprKind::Block(Vec::new(), Some(Box::new(expr))),
     "{" <stmts:(<Stmt> ";")+> <expr:Expr?> "}" => ExprKind::Block(stmts, expr.map(Box::new)),
@@ -117,16 +127,6 @@ Let: StmtKind = {
 
 Var: ExprKind = {
     Ident => ExprKind::Var(<>)
-}
-
-RecordFieldAccess: ExprKind = {
-    <expr:SmallExpr> "." <field_name:Ident> => ExprKind::RecordFieldAccess(Box::new(expr), field_name),
-}
-
-TupleFieldAccess: ExprKind = {
-    <expr:SmallExpr> "." <field_number:Digits> => {
-        ExprKind::TupleFieldAccess(Box::new(expr), field_number.try_into().expect("field number too big"))
-    }
 }
 
 Digits: u64 = {
