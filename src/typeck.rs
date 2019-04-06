@@ -1,7 +1,6 @@
 use {
     crate::{
-        ast::{Expr, ExprKind, Stmt, StmtKind, Name, Span},
-        util::{Map, join, mapping},
+        ast::{Expr, ExprKind, Stmt, StmtKind, Span},
         vm::{evaluate_type, ValueContext},
     },
     derive_more::{Display},
@@ -17,11 +16,7 @@ pub use crate::context::TypeContext;
 pub enum Type {
     #[display(fmt = "Nil")]
     Nil,
-    #[display(fmt = "{{{}}}", r#"join(", ", _0.iter().map(mapping(": ")))"#)]
-    Record(Map<Name, Type>),
-    #[display(fmt = "type ({})", r#"join(", ", _0.iter())"#)]
-    Tuple(Vec<Type>),
-    #[display(fmt = "Fn(({}, {}))", _0, _1)]
+    #[display(fmt = "Fn({})({})", _0, _1)]
     Func(Box<Type>, Box<Type>),
     #[display(fmt = "Number")]
     Number,
@@ -109,59 +104,8 @@ pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<T
 
 fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
     match &expr.kind {
-        ExprKind::Nil => Type::Nil,
-
         ExprKind::NumberLiteral(_) => Type::Number,
         ExprKind::StringLiteral(_) => Type::String_,
-
-        ExprKind::Tuple(vec) => {
-            // TODO: support dependent tuples
-            Type::Tuple(vec.iter().map(|e| infer_type_internal(e, type_context)).collect())
-        }
-        ExprKind::TupleType(vec) => {
-            vec.iter().for_each(|ty_expr| {
-                typeck_type_internal(ty_expr, type_context);
-            });
-
-            Type::Type
-        }
-        ExprKind::TupleFieldAccess(tuple_expr, number) => {
-            let tuple_type = infer_type_internal(tuple_expr, type_context);
-
-            match &tuple_type {
-                Type::Tuple(field_types) => {
-                    if let Some(field_type) = field_types.get(*number){
-                        field_type.clone()
-                    } else {
-                        type_error!(
-                            expr.span,
-                            "field number {} is out of range for tuple {}",
-                            number, tuple_type
-                        )
-                    }
-                }
-                _ => type_error!(
-                    tuple_expr.span,
-                    "expected a tuple with at least {} elements, found {}",
-                    number + 1, tuple_type
-                )
-            }
-        }
-
-        ExprKind::RecordValue(pairs) => {
-            // TODO: handle dependent records
-            Type::Record(pairs.iter().map(|(ident, expr)| {
-                (ident.name.clone(), infer_type_internal(expr, type_context))
-            }).collect())
-        }
-        ExprKind::RecordType(pairs) => {
-            pairs.iter().for_each(|(_, ty_expr)| {
-                typeck_type_internal(ty_expr, type_context);
-            });
-
-            Type::Type
-        }
-        ExprKind::RecordFieldAccess(..) => unimplemented!("RecordFieldAccess"),
 
         ExprKind::Block(stmts, expr) => {
             let type_context = stmts.iter().fold(type_context.clone(), |type_context, stmt| {
@@ -229,8 +173,6 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         }
 
         ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
-
-        ExprKind::NilType => Type::Type,
     }
 }
 

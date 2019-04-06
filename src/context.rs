@@ -1,6 +1,7 @@
 use {
     crate::{
         ast::Name,
+        builtin::builtin_func,
         util::Map,
         vm::{Value, VmError},
         typeck::Type,
@@ -54,32 +55,38 @@ impl Default for TypeContext {
 lazy_static! {
     static ref DEFAULT_CONTEXTS: (Map<Name, Type>, Map<Name, Value>) = {
         let initial_values: Vec<(&'static str, Type, Value)> = vec![
-            ("nil", Type::Nil, Value::Nil),
-            ("Nil", Type::Type, Value::Type(Type::Nil)),
             ("Type", Type::Type, Value::Type(Type::Type)),
             ("Number", Type::Type, Value::Type(Type::Number)),
             ("String", Type::Type, Value::Type(Type::String_)),
             (
                 "Fn",
                 Type::Func(
-                    Box::new(Type::Tuple(vec![Type::Type, Type::Type])),
                     Box::new(Type::Type),
+                    Box::new(Type::Func(
+                        Box::new(Type::Type),
+                        Box::new(Type::Type),
+                    )),
                 ),
-                Value::BuiltinFunc(|arg| {
-                    if let Value::Tuple(fields) = arg {
-                        if let [Value::Type(input_ty), Value::Type(output_ty)] = &**fields {
-                            let func_ty = Type::Func(
-                                Box::new(input_ty.clone()),
-                                Box::new(output_ty.clone()),
-                            );
-
-                            return Ok(Value::Type(func_ty))
-                        }
+                builtin_func(|input_ty| {
+                    if let Value::Type(input_ty) = input_ty {
+                        let input_ty = input_ty.clone();
+                        Ok(builtin_func(move |output_ty| {
+                            if let Value::Type(output_ty) = output_ty {
+                                Ok(Value::Type(Type::Func(
+                                    Box::new(input_ty.clone()),
+                                    Box::new(output_ty.clone()),
+                                )))
+                            } else {
+                                Err(VmError::new(format!(
+                                    "expected a type, found {}", input_ty
+                                )))
+                            }
+                        }))
+                    } else {
+                        Err(VmError::new(format!(
+                            "expected a type, found {}", input_ty
+                        )))
                     }
-
-                    Err(VmError::new(format!(
-                        "invalid argument to builtin func Fn: {}", arg
-                    )))
                 })
             )
         ];

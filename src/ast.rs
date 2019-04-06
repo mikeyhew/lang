@@ -51,14 +51,14 @@ impl Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-	Nil,
-	NilType,
-	RecordValue(Vec<(Ident, Expr)>),
-	RecordType(Vec<(Ident, Expr)>),
-	RecordFieldAccess(Box<Expr>, Ident),
-	Tuple(Vec<Expr>),
-	TupleType(Vec<Expr>),
-	TupleFieldAccess(Box<Expr>, usize),
+	// Nil,
+	// NilType,
+	// RecordValue(Vec<(Ident, Expr)>),
+	// RecordType(Vec<(Ident, Expr)>),
+	// RecordFieldAccess(Box<Expr>, Ident),
+	// Tuple(Vec<Expr>),
+	// TupleType(Vec<Expr>),
+	// TupleFieldAccess(Box<Expr>, usize),
 	Block(Vec<Stmt>, Option<Box<Expr>>),
 	Var(Ident),
 	Closure(Ident, Option<Box<Expr>>, Box<Expr>),

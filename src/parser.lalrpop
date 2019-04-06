@@ -8,9 +8,9 @@ use crate::{
     },
     util::unescape,
 };
-use std::{
-    convert::TryInto,
-};
+// use std::{
+//     convert::TryInto,
+// };
 
 grammar;
 
@@ -39,16 +39,16 @@ SmallExpr: Expr = {
 }
 
 SmallExprKind: ExprKind = {
-    EmptyRecord,
-    EmptyRecordType,
-    RecordValue,
-    RecordType,
-    RecordFieldAccess,
-    EmptyTuple,
-    EmptyTupleType,
-    TupleFieldAccess,
-    Tuple,
-    TupleType,
+    // EmptyRecord,
+    // EmptyRecordType,
+    // RecordValue,
+    // RecordType,
+    // RecordFieldAccess,
+    // EmptyTuple,
+    // EmptyTupleType,
+    // TupleFieldAccess,
+    // Tuple,
+    // TupleType,
     Block,
     NumberLiteral,
     StringLiteral,
@@ -67,55 +67,55 @@ StmtKind: StmtKind = {
     Let,
 }
 
-EmptyRecord: ExprKind = {
-    "{" "}" => ExprKind::Nil,
-}
+// EmptyRecord: ExprKind = {
+//     "{" "}" => ExprKind::Nil,
+// }
 
-EmptyRecordType: ExprKind = {
-    "type" "{" "}" => ExprKind::NilType,
-}
+// EmptyRecordType: ExprKind = {
+//     "type" "{" "}" => ExprKind::NilType,
+// }
 
-RecordValue: ExprKind = {
-    "{" <CommaAtLeast1<RecordFieldValue>> "}" => ExprKind::RecordValue(<>)
-}
+// RecordValue: ExprKind = {
+//     "{" <CommaAtLeast1<RecordFieldValue>> "}" => ExprKind::RecordValue(<>)
+// }
 
-RecordFieldValue: (Ident, Expr) = {
-    <name:Ident> "=" <value:Expr> => (name, value)
-}
+// RecordFieldValue: (Ident, Expr) = {
+//     <name:Ident> "=" <value:Expr> => (name, value)
+// }
 
-RecordType: ExprKind = {
-    "{" <CommaAtLeast1<RecordFieldType>> "}" => ExprKind::RecordType(<>)
-}
+// RecordType: ExprKind = {
+//     "{" <CommaAtLeast1<RecordFieldType>> "}" => ExprKind::RecordType(<>)
+// }
 
-RecordFieldType: (Ident, Expr) = {
-    <name:Ident> ":" <typ:Expr> => (name, typ)
-}
+// RecordFieldType: (Ident, Expr) = {
+//     <name:Ident> ":" <typ:Expr> => (name, typ)
+// }
 
-RecordFieldAccess: ExprKind = {
-    <expr:SmallExpr> "." <field_name:Ident> => ExprKind::RecordFieldAccess(Box::new(expr), field_name),
-}
+// RecordFieldAccess: ExprKind = {
+//     <expr:SmallExpr> "." <field_name:Ident> => ExprKind::RecordFieldAccess(Box::new(expr), field_name),
+// }
 
-EmptyTuple: ExprKind = {
-    "(" ")" => ExprKind::Nil,
-}
+// EmptyTuple: ExprKind = {
+//     "(" ")" => ExprKind::Nil,
+// }
 
-EmptyTupleType: ExprKind = {
-    "type" "(" ")" => ExprKind::NilType,
-}
+// EmptyTupleType: ExprKind = {
+//     "type" "(" ")" => ExprKind::NilType,
+// }
 
-Tuple: ExprKind = {
-    "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::Tuple(elems),
-}
+// Tuple: ExprKind = {
+//     "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::Tuple(elems),
+// }
 
-TupleType: ExprKind = {
-    "type" "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::TupleType(elems),
-}
+// TupleType: ExprKind = {
+//     "type" "(" <elems:CommaAtLeast2<Expr>> ")" => ExprKind::TupleType(elems),
+// }
 
-TupleFieldAccess: ExprKind = {
-    <expr:SmallExpr> "." <field_number:Digits> => {
-        ExprKind::TupleFieldAccess(Box::new(expr), field_number.try_into().expect("field number too big"))
-    }
-}
+// TupleFieldAccess: ExprKind = {
+//     <expr:SmallExpr> "." <field_number:Digits> => {
+//         ExprKind::TupleFieldAccess(Box::new(expr), field_number.try_into().expect("field number too big"))
+//     }
+// }
 
 Block: ExprKind = {
     "{" <expr:Expr> "}" => ExprKind::Block(Vec::new(), Some(Box::new(expr))),

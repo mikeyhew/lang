@@ -32,6 +32,7 @@ pub fn unescape(s: &str) -> String {
     output
 }
 
+#[allow(unused)]
 pub fn join<I: Iterator<Item=impl Display> + Clone>(
     joiner: &'static str,
     it: I,
@@ -61,12 +62,14 @@ pub fn join<I: Iterator<Item=impl Display> + Clone>(
 
 #[derive(Display)]
 #[display(fmt = "{}{}{}", key, between, value)]
+#[allow(unused)]
 pub struct Mapping<K: Display, V: Display> {
     between: &'static str,
     key: K,
     value: V,
 }
 
+#[allow(unused)]
 pub fn mapping<K: Display, V: Display>(
     between: &'static str,
 ) -> impl Fn((K, V)) -> Mapping<K, V> + Copy {
