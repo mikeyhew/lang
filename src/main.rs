@@ -109,29 +109,6 @@ fn main() {
                 println!("{}: {}", value, ty);
             }
         }
-
-        // let ty = match infer_type(&expr, &type_context){
-        //     Ok(ty) => ty,
-        //     Err(errors) => {
-        //         for error in errors {
-        //             println!("{} at {}", error.message, error.span);
-        //         }
-        //         continue
-        //     }
-        // };
-
-        // println!("type: {}", ty);
-
-        // let context = vm::ValueContext::new();
-        // let value = match vm::evaluate(&expr, &context) {
-        //     Ok(value) => value,
-        //     Err(err) => {
-        //         println!("{}", err);
-        //         continue
-        //     }
-        // };
-
-        // println!("{}", value);
     }
 
     line_reader.save_history("history.txt").unwrap();
