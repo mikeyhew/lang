@@ -2,7 +2,7 @@ use {
     crate::{
         ast::Name,
         util::Map,
-        vm::Value,
+        vm::{Value, VmError},
         typeck::Type,
     },
     lazy_static::lazy_static,
@@ -59,6 +59,29 @@ lazy_static! {
             ("Type", Type::Type, Value::Type(Type::Type)),
             ("Number", Type::Type, Value::Type(Type::Number)),
             ("String", Type::Type, Value::Type(Type::String_)),
+            (
+                "Fn",
+                Type::Func(
+                    Box::new(Type::Tuple(vec![Type::Type, Type::Type])),
+                    Box::new(Type::Type),
+                ),
+                Value::BuiltinFunc(|arg| {
+                    if let Value::Tuple(fields) = arg {
+                        if let [Value::Type(input_ty), Value::Type(output_ty)] = &**fields {
+                            let func_ty = Type::Func(
+                                Box::new(input_ty.clone()),
+                                Box::new(output_ty.clone()),
+                            );
+
+                            return Ok(Value::Type(func_ty))
+                        }
+                    }
+
+                    Err(VmError::new(format!(
+                        "invalid argument to builtin func Fn: {}", arg
+                    )))
+                })
+            )
         ];
 
         let mut types = Map::default();

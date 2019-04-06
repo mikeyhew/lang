@@ -61,6 +61,8 @@ pub enum ExprKind {
 	TupleFieldAccess(Box<Expr>, usize),
 	Block(Vec<Stmt>, Option<Box<Expr>>),
 	Var(Ident),
+	Closure(Ident, Option<Box<Expr>>, Box<Expr>),
+	Call(Box<Expr>, Box<Expr>),
 	NumberLiteral(Number),
 	StringLiteral(String),
 	Parenthesized(Box<Expr>),

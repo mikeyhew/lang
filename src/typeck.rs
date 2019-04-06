@@ -2,6 +2,7 @@ use {
     crate::{
         ast::{Expr, ExprKind, Stmt, StmtKind, Name, Span},
         util::{Map, join, mapping},
+        vm::{evaluate_type, ValueContext},
     },
     derive_more::{Display},
     std::{
@@ -20,6 +21,8 @@ pub enum Type {
     Record(Map<Name, Type>),
     #[display(fmt = "type ({})", r#"join(", ", _0.iter())"#)]
     Tuple(Vec<Type>),
+    #[display(fmt = "Fn(({}, {}))", _0, _1)]
+    Func(Box<Type>, Box<Type>),
     #[display(fmt = "Number")]
     Number,
     #[display(fmt = "String")]
@@ -48,6 +51,7 @@ thread_local! {
     static ERROR_CONTEXT: RefCell<ErrorContext> = RefCell::new(ErrorContext::new());
 }
 
+#[derive(Clone)]
 pub struct TypeError {
     pub message: String,
     pub span: Span,
@@ -116,16 +120,7 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         }
         ExprKind::TupleType(vec) => {
             vec.iter().for_each(|ty_expr| {
-                match infer_type_internal(ty_expr, type_context) {
-                    Type::Type | Type::Error => (),
-                    ty => {
-                        type_error!(
-                            ty_expr.span,
-                            "expected type of tuple field to be a type, found a {}",
-                            ty,
-                        );
-                    }
-                }
+                typeck_type_internal(ty_expr, type_context);
             });
 
             Type::Type
@@ -161,16 +156,7 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         }
         ExprKind::RecordType(pairs) => {
             pairs.iter().for_each(|(_, ty_expr)| {
-                match infer_type_internal(ty_expr, type_context) {
-                    Type::Type | Type::Error => (),
-                    ty => {
-                        type_error!(
-                            ty_expr.span,
-                            "expected type of record field to be a type, found a {}",
-                            ty,
-                        );
-                    }
-                }
+                typeck_type_internal(ty_expr, type_context);
             });
 
             Type::Type
@@ -195,6 +181,53 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
             }
         }
 
+        ExprKind::Closure(ident, ty_expr, body) => {
+            if let Some(ty_expr) = ty_expr {
+                let arg_ty = match typeck_type_internal(ty_expr, type_context) {
+                    Type::Error => Type::Error,
+                    Type::Type => {
+                        // TODO: more than just the default context
+                        evaluate_type(ty_expr, &ValueContext::default())
+                            .unwrap_or_else(|err| {
+                                type_error!(
+                                    ty_expr.span,
+                                    "type failed to evaluate: {}", err
+                                )
+                            })
+                    }
+                    ty => unreachable!(&format!("bad type: {}", ty)),
+                };
+                let type_context = type_context.extend(ident.name.clone(), arg_ty.clone());
+
+                let return_ty = infer_type_internal(body, &type_context);
+
+                Type::Func(Box::new(arg_ty), Box::new(return_ty))
+            } else {
+                type_error!(ident.span, "Cannot infer the type of {}", ident)
+            }
+        }
+
+        ExprKind::Call(callee, arg) => {
+            let callee_ty = infer_type_internal(callee, type_context);
+            let arg_ty = infer_type_internal(arg, type_context);
+
+            if let Type::Func(input_ty, output_ty) = callee_ty {
+                if *input_ty == arg_ty {
+                    (*output_ty).clone()
+                } else {
+                    type_error!(
+                        arg.span,
+                        "expected {}, found {}", input_ty, arg_ty
+                    )
+                }
+            } else {
+                type_error!(
+                    callee.span,
+                    "expected a function, found a value of type {}", callee_ty
+                )
+            }
+        }
+
         ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
 
         ExprKind::NilType => Type::Type,
@@ -212,4 +245,17 @@ fn typeck_stmt_internal(stmt: &Stmt, type_context: &TypeContext) -> TypeContext 
 
 pub fn typeck_stmt(stmt: &Stmt, type_context: &TypeContext) -> Result<TypeContext, Vec<TypeError>> {
     collect_type_errors(|| typeck_stmt_internal(stmt, type_context))
+}
+
+/// typechecks a type expression, and returns whether or not it succeeded
+fn typeck_type_internal(ty_expr: &Expr, type_context: &TypeContext) -> Type {
+    match infer_type_internal(ty_expr, type_context) {
+        ty@Type::Type | ty@Type::Error => ty,
+        ty => {
+            type_error!(
+                ty_expr.span,
+                "expected a type, found a value of type {}", ty,
+            )
+        }
+    }
 }

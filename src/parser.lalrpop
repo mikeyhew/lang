@@ -31,6 +31,7 @@ Expr: Expr = {
 
 ExprKind: ExprKind = {
     SmallExprKind,
+    Closure,
 }
 
 SmallExpr: Expr = {
@@ -47,10 +48,12 @@ SmallExprKind: ExprKind = {
     EmptyTupleType,
     TupleFieldAccess,
     Tuple,
+    TupleType,
     Block,
     NumberLiteral,
     StringLiteral,
     Var,
+    Call,
     "(" <expr:Expr> ")" => {
         ExprKind::Parenthesized(Box::new(expr))
     }
@@ -127,6 +130,18 @@ Let: StmtKind = {
 
 Var: ExprKind = {
     Ident => ExprKind::Var(<>)
+}
+
+Closure: ExprKind = {
+    "|" <arg:Ident> <ty:(":" <Expr>)?> "|" <body:Expr> => {
+        ExprKind::Closure(arg, ty.map(Box::new),Box::new(body))
+    }
+}
+
+Call: ExprKind = {
+    <callee:SmallExpr> "(" <arg:Expr> ")" => {
+        ExprKind::Call(Box::new(callee), Box::new(arg))
+    }
 }
 
 Digits: u64 = {
