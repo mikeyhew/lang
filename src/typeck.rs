@@ -1,7 +1,8 @@
 use {
     crate::{
-        ast::{Expr, ExprKind, Stmt, StmtKind, Span},
-        vm::{evaluate_type, ValueContext},
+        ast::{Name, Expr, ExprKind, Stmt, StmtKind, Span},
+        context::TypeContext,
+        vm::{evaluate, Value},
     },
     derive_more::{Display},
     std::{
@@ -9,8 +10,6 @@ use {
         mem,
     }
 };
-
-pub use crate::context::TypeContext;
 
 #[derive(Debug, Display, Clone, Eq, PartialEq)]
 pub enum Type {
@@ -22,6 +21,8 @@ pub enum Type {
     Number,
     #[display(fmt = "String")]
     String_,
+    #[display(fmt = "{}", _0)]
+    Param(Name),
     #[display(fmt = "Type")]
     Type,
     #[display(fmt = "TypeError")]
@@ -31,6 +32,7 @@ pub enum Type {
 pub struct ErrorContext {
     in_use: bool,
     errors: Vec<TypeError>,
+    has_error: bool,
 }
 
 impl ErrorContext {
@@ -38,6 +40,7 @@ impl ErrorContext {
         Self {
             in_use: false,
             errors: Vec::new(),
+            has_error: false,
         }
     }
 }
@@ -58,6 +61,7 @@ impl TypeError {
             assert!(error_context.borrow().in_use);
 
             error_context.borrow_mut().errors.push(self);
+            error_context.borrow_mut().has_error = true;
         })
     }
 }
@@ -98,28 +102,42 @@ fn collect_type_errors<T>(f: impl FnOnce() -> T) -> Result<T, Vec<TypeError>> {
     })
 }
 
-pub fn infer_type(expr: &Expr, type_context: &TypeContext) -> Result<Type, Vec<TypeError>> {
-    collect_type_errors(|| infer_type_internal(expr, type_context))
+fn let_me_know_if_an_error_occurs<T>(f: impl FnOnce() -> T) -> (T, bool) {
+    let had_error = ERROR_CONTEXT.with(|error_context| {
+        error_context.borrow().has_error
+    });
+
+    let output = f();
+
+    ERROR_CONTEXT.with(|error_context| {
+        let error_occurred = error_context.borrow().has_error;
+        error_context.borrow_mut().has_error = had_error || error_occurred;
+        (output, error_occurred)
+    })
 }
 
-fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
+pub fn infer_type(expr: &Expr, context: &TypeContext) -> Result<Type, Vec<TypeError>> {
+    collect_type_errors(|| infer_type_internal(expr, context))
+}
+
+fn infer_type_internal(expr: &Expr, context: &TypeContext) -> Type {
     match &expr.kind {
         ExprKind::NumberLiteral(_) => Type::Number,
         ExprKind::StringLiteral(_) => Type::String_,
 
         ExprKind::Block(stmts, expr) => {
-            let type_context = stmts.iter().fold(type_context.clone(), |type_context, stmt| {
-                typeck_stmt_internal(stmt, &type_context)
+            let context = stmts.iter().fold(context.clone(), |context, stmt| {
+                typeck_stmt_internal(stmt, &context)
             });
 
             match expr {
-                Some(expr) => infer_type_internal(expr, &type_context),
+                Some(expr) => infer_type_internal(expr, &context),
                 None => Type::Nil,
             }
         }
 
         ExprKind::Var(ident) => {
-            match type_context.lookup(&ident.name) {
+            match context.lookup(&ident.name) {
                 Some(ty) => ty.clone(),
                 None => type_error!(ident.span, "Undeclared variable {}", ident.name),
             }
@@ -127,23 +145,10 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
 
         ExprKind::Closure(ident, ty_expr, body) => {
             if let Some(ty_expr) = ty_expr {
-                let arg_ty = match typeck_type_internal(ty_expr, type_context) {
-                    Type::Error => Type::Error,
-                    Type::Type => {
-                        // TODO: more than just the default context
-                        evaluate_type(ty_expr, &ValueContext::default())
-                            .unwrap_or_else(|err| {
-                                type_error!(
-                                    ty_expr.span,
-                                    "type failed to evaluate: {}", err
-                                )
-                            })
-                    }
-                    ty => unreachable!(&format!("bad type: {}", ty)),
-                };
-                let type_context = type_context.extend(ident.name.clone(), arg_ty.clone());
+                let arg_ty = evaluate_type(ty_expr, context);
+                let context = context.extend(ident.name.clone(), arg_ty.clone(), Value::Param(ident.name.clone()));
 
-                let return_ty = infer_type_internal(body, &type_context);
+                let return_ty = infer_type_internal(body, &context);
 
                 Type::Func(Box::new(arg_ty), Box::new(return_ty))
             } else {
@@ -152,8 +157,8 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
         }
 
         ExprKind::Call(callee, arg) => {
-            let callee_ty = infer_type_internal(callee, type_context);
-            let arg_ty = infer_type_internal(arg, type_context);
+            let callee_ty = infer_type_internal(callee, context);
+            let arg_ty = infer_type_internal(arg, context);
 
             if let Type::Func(input_ty, output_ty) = callee_ty {
                 if *input_ty == arg_ty {
@@ -172,32 +177,56 @@ fn infer_type_internal(expr: &Expr, type_context: &TypeContext) -> Type {
             }
         }
 
-        ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, type_context),
+        ExprKind::Parenthesized(expr) => infer_type_internal(&*expr, context),
     }
 }
 
-fn typeck_stmt_internal(stmt: &Stmt, type_context: &TypeContext) -> TypeContext {
+fn evaluate_type(ty_expr: &Expr, context: &TypeContext) -> Type {
+    let (ty_expr_type, error_occurred) = let_me_know_if_an_error_occurs(|| {
+        infer_type_internal(ty_expr, context)
+    });
+
+    if error_occurred {
+        return Type::Error
+    }
+
+    match ty_expr_type {
+        Type::Type => (),
+        Type::Error => unreachable!("type error should result in error_occurred being true"),
+        ty => return type_error!(
+            ty_expr.span,
+            "expected a type, found a value of type {}", ty
+        ),
+    }
+
+    let value = match evaluate(ty_expr, &context.as_value_context()) {
+        Ok(value) => value,
+        Err(err) => return type_error!(
+            ty_expr.span,
+            "vm error occurred during evaluation of type expression: {}", err
+        )
+    };
+
+    match value {
+        Value::Type(ty) => ty,
+        Value::Param(name) => Type::Param(name),
+        _ => type_error!(
+            ty_expr.span,
+            "evaluation of type expression returned a non-type value: {}", value
+        )
+    }
+}
+
+fn typeck_stmt_internal(stmt: &Stmt, context: &TypeContext) -> TypeContext {
     match &stmt.kind {
         StmtKind::Let(ident, expr) => {
-            let ty = infer_type_internal(expr, &type_context);
-            type_context.extend(ident.name.clone(), ty)
+            let ty = infer_type_internal(expr, &context);
+            let value = evaluate(expr, &context.as_value_context()).expect("failed to evaluate");
+            context.extend(ident.name.clone(), ty, value)
         }
     }
 }
 
-pub fn typeck_stmt(stmt: &Stmt, type_context: &TypeContext) -> Result<TypeContext, Vec<TypeError>> {
-    collect_type_errors(|| typeck_stmt_internal(stmt, type_context))
-}
-
-/// typechecks a type expression, and returns whether or not it succeeded
-fn typeck_type_internal(ty_expr: &Expr, type_context: &TypeContext) -> Type {
-    match infer_type_internal(ty_expr, type_context) {
-        ty@Type::Type | ty@Type::Error => ty,
-        ty => {
-            type_error!(
-                ty_expr.span,
-                "expected a type, found a value of type {}", ty,
-            )
-        }
-    }
+pub fn typeck_stmt(stmt: &Stmt, context: &TypeContext) -> Result<TypeContext, Vec<TypeError>> {
+    collect_type_errors(|| typeck_stmt_internal(stmt, context))
 }

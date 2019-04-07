@@ -75,5 +75,3 @@ pub fn mapping<K: Display, V: Display>(
 ) -> impl Fn((K, V)) -> Mapping<K, V> + Copy {
     move |(key, value)| Mapping {between, key, value}
 }
-
-pub type Map<K, V> = fnv::FnvHashMap<K, V>;

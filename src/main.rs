@@ -13,6 +13,7 @@ mod vm;
 use {
     crate::{
         ast::ReplLineKind,
+        context::{TypeContext, ValueContext},
         parser::ReplLineParser,
         typeck::{Type, typeck_stmt, infer_type},
         vm::{Value, evaluate, evaluate_stmt},
@@ -29,8 +30,8 @@ fn main() {
         println!("No previous history.");
     }
 
-    let mut type_context = typeck::TypeContext::new();
-    let mut value_context = vm::ValueContext::new();
+    let mut type_context = TypeContext::default();
+    let mut value_context = ValueContext::default();
 
     'repl: loop {
         let line = match line_reader.readline("> ") {
@@ -61,7 +62,7 @@ fn main() {
 
         match &repl_line.kind {
             ReplLineKind::Block(stmts, expr) => {
-                // type-check and evaluate each statement, replacing type_context and context for each one
+                // type-check and evaluate each statement, replacing the contexts after statement
                 for stmt in stmts {
                     match typeck_stmt(&stmt, &type_context) {
                         Ok(tcx) => type_context = tcx,

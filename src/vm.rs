@@ -42,25 +42,22 @@ macro_rules! vm_error {
 pub enum Value {
     #[display(fmt = "nil")]
     Nil,
-    #[display(fmt = "[Function]")]
-    Closure(Name, Box<Expr>, #[debug(skip)] ValueContext),
-    #[display(fmt = "[Builtin]")]
-    BuiltinFunc(#[debug(skip)] Box<dyn BuiltinFunc>),
+
     #[display(fmt = "{}", _0)]
     Number(Number),
     #[display(fmt = "{:?}", _0)]
     String_(String),
+
+    #[display(fmt = "[Function]")]
+    Closure(Name, Box<Expr>, #[debug(skip)] ValueContext),
+    #[display(fmt = "[Builtin]")]
+    BuiltinFunc(#[debug(skip)] Box<dyn BuiltinFunc>),
+
+    #[display(fmt = "{}", _0)]
+    Param(Name),
+
     #[display(fmt = "{}", _0)]
     Type(Type),
-}
-
-pub fn evaluate_type(expr: &Expr, context: &ValueContext) -> Result<Type, VmError> {
-    let value = evaluate(expr, context)?;
-
-    Ok(match value {
-        Value::Type(ty) => ty,
-        _ => vm_error!("expected a type, found {}", value),
-    })
 }
 
 pub fn evaluate_stmt(stmt: &Stmt, context: &ValueContext) -> Result<ValueContext, VmError> {

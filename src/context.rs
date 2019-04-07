@@ -1,104 +1,91 @@
 use {
     crate::{
-        ast::Name,
-        builtin::builtin_func,
-        util::Map,
-        vm::{Value, VmError},
+        ast::{Name},
+        builtin::builtins,
         typeck::Type,
+        vm::Value,
     },
-    lazy_static::lazy_static,
 };
 
-#[derive(Clone)]
-pub struct Context<Value> {
-    map: Map<Name, Value>,
+#[derive(Debug, Clone)]
+struct TypeEntry {
+    name: Name,
+    ty: Type,
+    value: Value,
 }
 
-impl<Value> Context<Value> {
-    pub fn new() -> Self
-    where Self: Default {
-        Default::default()
-    }
-
-    pub fn extend(&self, name: Name, value: Value) -> Self
-    where
-        Value: Clone,
-    {
-        let mut map = self.map.clone();
-        map.insert(name, value);
-        Self {map}
-    }
-
-    pub fn lookup(&self, name: &Name) -> Option<&Value> {
-        self.map.get(name)
-    }
+#[derive(Debug, Clone)]
+pub struct TypeContext {
+    entries: Vec<TypeEntry>,
 }
-
-pub type ValueContext = Context<Value>;
-
-impl Default for ValueContext {
-    fn default() -> Self {
-        let (_, values) = &*DEFAULT_CONTEXTS;
-        Context {map: values.clone()}
-    }
-}
-
-pub type TypeContext = Context<Type>;
 
 impl Default for TypeContext {
     fn default() -> Self {
-        let (types, _) = &*DEFAULT_CONTEXTS;
-        Context {map: types.clone()}
+        let entries = builtins().into_iter()
+            .map(|(name, ty, value)| {
+                TypeEntry {name: name.into(), ty, value}
+            }).collect();
+
+        Self {entries}
     }
 }
 
-lazy_static! {
-    static ref DEFAULT_CONTEXTS: (Map<Name, Type>, Map<Name, Value>) = {
-        let initial_values: Vec<(&'static str, Type, Value)> = vec![
-            ("Type", Type::Type, Value::Type(Type::Type)),
-            ("Number", Type::Type, Value::Type(Type::Number)),
-            ("String", Type::Type, Value::Type(Type::String_)),
-            (
-                "Fn",
-                Type::Func(
-                    Box::new(Type::Type),
-                    Box::new(Type::Func(
-                        Box::new(Type::Type),
-                        Box::new(Type::Type),
-                    )),
-                ),
-                builtin_func(|input_ty| {
-                    if let Value::Type(input_ty) = input_ty {
-                        let input_ty = input_ty.clone();
-                        Ok(builtin_func(move |output_ty| {
-                            if let Value::Type(output_ty) = output_ty {
-                                Ok(Value::Type(Type::Func(
-                                    Box::new(input_ty.clone()),
-                                    Box::new(output_ty.clone()),
-                                )))
-                            } else {
-                                Err(VmError::new(format!(
-                                    "expected a type, found {}", input_ty
-                                )))
-                            }
-                        }))
-                    } else {
-                        Err(VmError::new(format!(
-                            "expected a type, found {}", input_ty
-                        )))
-                    }
-                })
-            )
-        ];
+impl TypeContext {
+    pub fn extend(&self, name: Name, ty: Type, value: Value) -> Self {
+        let mut entries = self.entries.clone();
+        entries.push(TypeEntry {name, ty, value});
+        Self {entries}
+    }
 
-        let mut types = Map::default();
-        let mut values = Map::default();
+    pub fn lookup(&self, name: &Name) -> Option<Type> {
+        self.entries.iter().rev()
+            .find(|entry| entry.name == *name)
+            .map(|entry| entry.ty.clone())
+    }
 
-        for (name, ty, value) in initial_values {
-            types.insert(name.into(), ty);
-            values.insert(name.into(), value);
-        }
+    pub fn as_value_context(&self) -> ValueContext {
+        let entries = self.entries.iter()
+            .map(|TypeEntry {name, value, ..}| {
+                ValueEntry {name: name.clone(), value: value.clone()}
+            }).collect();
 
-        (types, values)
-    };
+        ValueContext {entries}
+    }
 }
+
+#[derive(Debug, Clone)]
+struct ValueEntry {
+    name: Name,
+    value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValueContext {
+    entries: Vec<ValueEntry>,
+}
+
+impl Default for ValueContext {
+    fn default() -> Self {
+        let entries = builtins().into_iter()
+            .map(|(name, _, value)| {
+                ValueEntry {name: name.into(), value}
+            }).collect();
+
+        Self {entries}
+    }
+}
+
+impl ValueContext {
+    pub fn extend(&self, name: Name, value: Value) -> Self {
+        let mut entries = self.entries.clone();
+        entries.push(ValueEntry {name, value});
+        Self {entries}
+    }
+
+    pub fn lookup(&self, name: &Name) -> Option<Value> {
+        self.entries.iter().rev()
+            .find(|entry| entry.name == *name)
+            .map(|entry| entry.value.clone())
+    }
+}
+
