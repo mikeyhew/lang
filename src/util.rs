@@ -1,5 +1,5 @@
 use {
-    derive_more::Display,
+    derive_more::{Display},
     std::fmt::{self, Display},
 };
 
@@ -74,4 +74,11 @@ pub fn mapping<K: Display, V: Display>(
     between: &'static str,
 ) -> impl Fn((K, V)) -> Mapping<K, V> + Copy {
     move |(key, value)| Mapping {between, key, value}
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ParamDepth(u32);
+
+impl ParamDepth {
+    pub const ZERO: Self = ParamDepth(0);
 }

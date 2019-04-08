@@ -2,6 +2,7 @@ use {
     crate::{
         ast::{Name, Expr, ExprKind, Stmt, StmtKind, Span},
         context::TypeContext,
+        util::ParamDepth,
         vm::{evaluate, Value},
     },
     derive_more::{Display},
@@ -22,7 +23,7 @@ pub enum Type {
     #[display(fmt = "String")]
     String_,
     #[display(fmt = "{}", _0)]
-    Param(Name),
+    Param(Name, ParamDepth),
     #[display(fmt = "Type")]
     Type,
     #[display(fmt = "TypeError")]
@@ -146,7 +147,7 @@ fn infer_type_internal(expr: &Expr, context: &TypeContext) -> Type {
         ExprKind::Closure(ident, ty_expr, body) => {
             if let Some(ty_expr) = ty_expr {
                 let arg_ty = evaluate_type(ty_expr, context);
-                let context = context.extend(ident.name.clone(), arg_ty.clone(), Value::Param(ident.name.clone()));
+                let context = context.extend(ident.name.clone(), arg_ty.clone(), Value::Param(ident.name.clone(), ParamDepth::ZERO));
 
                 let return_ty = infer_type_internal(body, &context);
 
@@ -209,7 +210,7 @@ fn evaluate_type(ty_expr: &Expr, context: &TypeContext) -> Type {
 
     match value {
         Value::Type(ty) => ty,
-        Value::Param(name) => Type::Param(name),
+        Value::Param(name, depth) => Type::Param(name, depth),
         _ => type_error!(
             ty_expr.span,
             "evaluation of type expression returned a non-type value: {}", value

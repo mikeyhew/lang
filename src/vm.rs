@@ -10,6 +10,7 @@ use {
         },
         builtin::BuiltinFunc,
         typeck::Type,
+        util::ParamDepth,
     },
     custom_debug_derive::CustomDebug,
     derive_more::Display,
@@ -54,7 +55,7 @@ pub enum Value {
     BuiltinFunc(#[debug(skip)] Box<dyn BuiltinFunc>),
 
     #[display(fmt = "{}", _0)]
-    Param(Name),
+    Param(Name, ParamDepth),
 
     #[display(fmt = "{}", _0)]
     Type(Type),
