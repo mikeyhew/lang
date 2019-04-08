@@ -1,21 +1,23 @@
 use {
     crate::{
-        vm::{Value, VmError, VmResult},
-        typeck::Type,
+        eval::{EvalError, EvalResult},
+        value::{Value, Type}
     },
 };
+#[macro_use]
+use crate::eval;
 
 pub trait BuiltinFunc: Send + Sync {
-    fn call(&self, arg: &Value) -> VmResult<Value>;
+    fn call(&self, arg: &Value) -> EvalResult<Value>;
     fn clone(&self) -> Box<dyn BuiltinFunc>;
 }
 
 impl<F> BuiltinFunc for F
 where
-    F: Fn(&Value) -> VmResult<Value>,
+    F: Fn(&Value) -> EvalResult<Value>,
     F: Clone + Send + Sync + 'static,
 {
-    fn call(&self, arg: &Value) -> VmResult<Value> {
+    fn call(&self, arg: &Value) -> EvalResult<Value> {
         self(arg)
     }
     fn clone(&self) -> Box<dyn BuiltinFunc> {
@@ -31,43 +33,43 @@ impl Clone for Box<dyn BuiltinFunc> {
 
 pub fn builtin_func<F>(f: F) -> Value
 where
-    F: Fn(&Value) -> VmResult<Value>,
+    F: Fn(&Value) -> EvalResult<Value>,
     F: Clone + Send + Sync + 'static,
 {
     Value::BuiltinFunc(Box::new(f))
 }
 
 pub fn builtins() -> Vec<(&'static str, Type, Value)> {
+    use Value::*;
     vec![
-        ("Type", Type::Type, Value::Type(Type::Type)),
-        ("Number", Type::Type, Value::Type(Type::Number)),
-        ("String", Type::Type, Value::Type(Type::String_)),
+        ("Type", Type(TypeType), TypeType),
+        ("Number", Type(TypeType), NumberType),
+        ("String", Type(TypeType), StringType),
         (
             "Fn",
-            Type::Func(
-                Box::new(Type::Type),
-                Box::new(Type::Func(
-                    Box::new(Type::Type),
-                    Box::new(Type::Type),
-                )),
-            ),
+            Type(Value::FuncType(
+                Box::new(Type(TypeType)),
+                Box::new(Type(Value::FuncType(
+                    Box::new(Type(TypeType)),
+                    Box::new(Type(TypeType)),
+                ))),
+            )),
             builtin_func(|input_ty| {
-                if let Value::Type(input_ty) = input_ty {
-                    let input_ty = input_ty.clone();
+                if let Some(input_ty) = input_ty.as_type() {
                     Ok(builtin_func(move |output_ty| {
-                        if let Value::Type(output_ty) = output_ty {
-                            Ok(Value::Type(Type::Func(
+                        if let Some(output_ty) = output_ty.as_type() {
+                            Ok(Value::FuncType(
                                 Box::new(input_ty.clone()),
                                 Box::new(output_ty.clone()),
-                            )))
+                            ))
                         } else {
-                            Err(VmError::new(format!(
+                            Err(EvalError(format!(
                                 "expected a type, found {}", input_ty
                             )))
                         }
                     }))
                 } else {
-                    Err(VmError::new(format!(
+                    Err(EvalError(format!(
                         "expected a type, found {}", input_ty
                     )))
                 }

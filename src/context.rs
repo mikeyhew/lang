@@ -1,91 +1,41 @@
-use {
-    crate::{
-        ast::{Name},
-        builtin::builtins,
-        typeck::Type,
-        vm::Value,
-    },
+use crate::{
+    ast::Name,
+    builtin::builtins,
+    value::{Value, Type, ParamDepth},
 };
 
 #[derive(Debug, Clone)]
-struct TypeEntry {
-    name: Name,
-    ty: Type,
-    value: Value,
+enum Entry {
+    Value(Name, Type, Value),
+    Param(Name, Type),
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeContext {
-    entries: Vec<TypeEntry>,
+pub struct Context {
+    entries: Vec<Entry>,
 }
 
-impl Default for TypeContext {
+impl Default for Context {
     fn default() -> Self {
         let entries = builtins().into_iter()
-            .map(|(name, ty, value)| {
-                TypeEntry {name: name.into(), ty, value}
-            }).collect();
+            .map(|(name, ty, value)| Entry::Value(name.into(), ty, value))
+            .collect();
 
-        Self {entries}
+        Context {entries}
     }
 }
 
-impl TypeContext {
-    pub fn extend(&self, name: Name, ty: Type, value: Value) -> Self {
-        let mut entries = self.entries.clone();
-        entries.push(TypeEntry {name, ty, value});
-        Self {entries}
-    }
-
-    pub fn lookup(&self, name: &Name) -> Option<Type> {
-        self.entries.iter().rev()
-            .find(|entry| entry.name == *name)
-            .map(|entry| entry.ty.clone())
-    }
-
-    pub fn as_value_context(&self) -> ValueContext {
-        let entries = self.entries.iter()
-            .map(|TypeEntry {name, value, ..}| {
-                ValueEntry {name: name.clone(), value: value.clone()}
-            }).collect();
-
-        ValueContext {entries}
+impl Context {
+    fn lookup_name(&self, name: &Name) -> Option<(Type, Value)> {
+        self.entries.iter().rev().enumerate()
+            .filter_map(|(i, entry)| match entry {
+                Entry::Value(name2, ty, value) if name2 == name => {
+                    Some((ty.clone(), value.clone()))
+                }
+                Entry::Param(name2, ty) if name2 == name => {
+                    Some((ty.clone(), Value::Param(name.clone(), ParamDepth(i as u32))))
+                }
+                _ => None,
+            }).next()
     }
 }
-
-#[derive(Debug, Clone)]
-struct ValueEntry {
-    name: Name,
-    value: Value,
-}
-
-#[derive(Debug, Clone)]
-pub struct ValueContext {
-    entries: Vec<ValueEntry>,
-}
-
-impl Default for ValueContext {
-    fn default() -> Self {
-        let entries = builtins().into_iter()
-            .map(|(name, _, value)| {
-                ValueEntry {name: name.into(), value}
-            }).collect();
-
-        Self {entries}
-    }
-}
-
-impl ValueContext {
-    pub fn extend(&self, name: Name, value: Value) -> Self {
-        let mut entries = self.entries.clone();
-        entries.push(ValueEntry {name, value});
-        Self {entries}
-    }
-
-    pub fn lookup(&self, name: &Name) -> Option<Value> {
-        self.entries.iter().rev()
-            .find(|entry| entry.name == *name)
-            .map(|entry| entry.value.clone())
-    }
-}
-
